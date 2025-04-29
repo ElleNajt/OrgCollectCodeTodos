@@ -29,7 +29,34 @@
   :type 'file
   :group 'org-collect-code-todos)
 
+(defcustom org-collect-code-todos-read-only t
+  "Whether the code-todos.org file should be read-only by default.
+When enabled, the file is read-only except when marking TODOs as done or archiving."
+  :type 'boolean
+  :group 'org-collect-code-todos)
+
 (require 'uuid)
+
+(defun org-collect-code-todos-make-writable ()
+  "Make the code-todos buffer writable temporarily."
+  (when (and org-collect-code-todos-read-only
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    (read-only-mode -1)))
+
+(defun org-collect-code-todos-make-read-only ()
+  "Make the code-todos buffer read-only again."
+  (when (and org-collect-code-todos-read-only
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    (read-only-mode 1)))
+
+(defun org-collect-code-todos-set-read-only ()
+  "Set the code-todos buffer to read-only when opened."
+  (when (and org-collect-code-todos-read-only
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    (read-only-mode 1)))
 
 
 
@@ -117,6 +144,9 @@
           (with-current-buffer (find-file-noselect org-collect-code-todos-file)
             (message "Processing TODOs in %s" org-collect-code-todos-file)
             (org-mode)
+            ;; Temporarily make the buffer writable
+            (when org-collect-code-todos-read-only
+              (read-only-mode -1))
             (dolist (todo todos)
               (let* ((todo-lines (split-string todo "\n"))
                      (heading-line (car todo-lines))
@@ -226,7 +256,10 @@ If the TODO text has been updated, assign a new UUID."
                                       (org-back-to-heading t)
                                       (org-entry-put (point) "TODO_ID" new-uuid)
                                       (org-entry-put (point) "LAST" org-todo-text)
-                                      (save-buffer)))))
+                                      (save-buffer)
+                                      ;; Make the buffer read-only again
+                                      (when org-collect-code-todos-read-only
+                                        (read-only-mode 1))))))
                             ;; Just update the TODO/DONE state
                             (replace-match (concat org-state "[" todo-id "] " current-text)))
                           (save-buffer)))
@@ -238,6 +271,18 @@ If the TODO text has been updated, assign a new UUID."
 
 (add-hook 'org-after-todo-state-change-hook #'mark-source-todo-state)
 
+;; Make the buffer read-only when opened
+(add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
+
+;; Make the buffer temporarily writable for specific operations
+(advice-add 'org-todo :before #'org-collect-code-todos-make-writable)
+(advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable)
+(advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable)
+
+;; Make the buffer read-only again after operations
+(advice-add 'org-todo :after #'org-collect-code-todos-make-read-only)
+(advice-add 'org-archive-subtree :after #'org-collect-code-todos-make-read-only)
+(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-make-read-only)
 
 (provide 'org-collect-code-todos)
 ;;; org-collect-code-TODO[d4ed979c] s.el ends here
