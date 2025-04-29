@@ -203,6 +203,12 @@ When enabled, the file is read-only except when marking TODOs as done or archivi
 (defun mark-source-todo-state ()
   "Update TODO/DONE state in source file when changed in code-todos.org.
 If the TODO text has been updated, assign a new UUID."
+  ;; Make sure the buffer is writable for this operation
+  (when (and (eq major-mode 'org-mode)
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    (org-collect-code-todos-make-writable))
+  
   (when (and (eq major-mode 'org-mode)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
              (member org-state '("TODO" "DONE")))
@@ -276,6 +282,16 @@ If the TODO text has been updated, assign a new UUID."
 
 (add-hook 'org-after-todo-state-change-hook #'mark-source-todo-state)
 
+;; Function to make buffer writable when trying to change TODO state
+(defun org-collect-code-todos-before-todo-state-change ()
+  "Make the code-todos buffer writable before changing TODO state."
+  (when (and (eq major-mode 'org-mode)
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    (org-collect-code-todos-make-writable)))
+
+(add-hook 'org-before-todo-state-change-hook #'org-collect-code-todos-before-todo-state-change)
+
 ;; Make the buffer read-only when opened
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 
@@ -284,10 +300,15 @@ If the TODO text has been updated, assign a new UUID."
 (advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable)
 (advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable)
 
+;; Also make writable when changing TODO state through other means
+(advice-add 'org-after-todo-state-change-hook :before #'org-collect-code-todos-make-writable)
+(advice-add 'org-ctrl-c-ctrl-c :before #'org-collect-code-todos-make-writable)
+
 ;; Make the buffer read-only again after operations
 (advice-add 'org-todo :after #'org-collect-code-todos-make-read-only)
 (advice-add 'org-archive-subtree :after #'org-collect-code-todos-make-read-only)
 (advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-make-read-only)
+(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-make-read-only)
 
 (provide 'org-collect-code-todos)
 ;;; org-collect-code-TODO[d4ed979c] s.el ends here
