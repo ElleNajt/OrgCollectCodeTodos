@@ -140,12 +140,18 @@
                         (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
                           (setq current-last (match-string 1))))
                       
-                      ;; If :LAST: matches, update the heading and :LAST: property
-                      (message "'%s' vs '%s' vs '%s'" current-last last-text todo-text)
-                      (when (and current-last (string= current-last todo-text))
-                        (message "matched!")
-                        (org-edit-headline (concat "TODO " todo-text))
-                        (org-entry-put (point) "LAST" todo-text)))))
+                      ;; Get the current heading text (without TODO keyword and tags)
+                      (let ((current-heading-text (org-get-heading t t t t)))
+                        ;; If :LAST: matches the current heading text but differs from the code todo-text,
+                        ;; update the heading and :LAST: property
+                        (message "Current heading: '%s', LAST: '%s', New code todo: '%s'" 
+                                 current-heading-text current-last todo-text)
+                        (when (and current-last 
+                                   (string= current-last current-heading-text)
+                                   (not (string= current-heading-text todo-text)))
+                          (message "Updating heading: '%s' -> '%s'" current-heading-text todo-text)
+                          (org-edit-headline (concat "TODO " todo-text))
+                          (org-entry-put (point) "LAST" todo-text))))))
                 
                 ;; If no existing entry was found or updated, add the new entry
                 (unless existing-entry-found
