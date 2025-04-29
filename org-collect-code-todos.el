@@ -35,6 +35,7 @@
 
 (defun collect-todos-and-add-to-code-todos ()
   (when (derived-mode-p 'prog-mode)
+    (message "Starting TODO collection for %s" (buffer-file-name))
     (save-excursion
       (let ((file-path (buffer-file-name))
             (comment-start (string-trim comment-start))
@@ -56,6 +57,7 @@
                                 file-path
                                 line-number
                                 todo-text)))
+            (message "Found TODO: '%s' with ID: %s at line %d" todo-text id line-number)
             ;; If no ID exists, add one to the source file
             (unless existing-id
               (let ((original-prefix (buffer-substring-no-properties 
@@ -110,8 +112,10 @@
                   
                   (push entry todos))))))
 
+        (message "Found %d TODOs in %s" (length todos) file-path)
         (when todos
           (with-current-buffer (find-file-noselect org-collect-code-todos-file)
+            (message "Processing TODOs in %s" org-collect-code-todos-file)
             (org-mode)
             (dolist (todo todos)
               (let* ((todo-lines (split-string todo "\n"))
@@ -144,19 +148,22 @@
                       (let ((current-heading-text (org-get-heading t t t t)))
                         ;; If :LAST: matches the current heading text but differs from the code todo-text,
                         ;; update the heading and :LAST: property
-                        (message "Current heading: '%s', LAST: '%s', New code todo: '%s'" 
+                        (message "EXISTING ENTRY - Current heading: '%s', LAST: '%s', New code todo: '%s'" 
                                  current-heading-text current-last todo-text)
                         (when (and current-last 
                                    (string= current-last current-heading-text)
                                    (not (string= current-heading-text todo-text)))
-                          (message "Updating heading: '%s' -> '%s'" current-heading-text todo-text)
+                          (message "UPDATING heading: '%s' -> '%s'" current-heading-text todo-text)
                           (org-edit-headline todo-text)
                           (org-entry-put (point) "LAST" todo-text))))))
                 
                 ;; If no existing entry was found or updated, add the new entry
                 (unless existing-entry-found
+                  (message "Adding new entry for TODO: '%s' with ID: %s" todo-text todo-id)
                   (goto-char (point-max))
-                  (insert "\n" todo))))
+                  (insert "\n" todo))
+                (message "Entry processed: existing=%s, id=%s, text='%s'" 
+                         existing-entry-found todo-id todo-text)))
             
             (save-buffer)))))))
 
