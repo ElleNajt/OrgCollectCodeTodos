@@ -29,10 +29,7 @@
   :type 'file
   :group 'org-collect-code-todos)
 
-(defcustom org-collect-code-todos-next-id 1
-  "Next ID to assign to a TODO comment."
-  :type 'integer
-  :group 'org-collect-code-todos)
+(require 'uuid)
 
 
 
@@ -50,7 +47,7 @@
                  (todo-text (string-trim (match-string-no-properties 3)))
                  (file-name (replace-regexp-in-string "[.-]" "_"
                                                       (file-name-nondirectory file-path)))
-                 (id (or existing-id (number-to-string org-collect-code-todos-next-id)))
+                 (id (or existing-id (substring (uuid-string) 0 8)))
                  (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:END:\n[[%s::%d][%s]]\n"
                                 todo-text
                                 file-name
@@ -64,10 +61,9 @@
                     (todo-with-id (format "%sTODO[%s] %s" 
                                          (substring (match-string 0) 0 (- (length (match-string 0)) 
                                                                          (+ (length (match-string 1)) (length (match-string 3)))))
-                                         org-collect-code-todos-next-id
+                                         id
                                          todo-text)))
-                (replace-match todo-with-id)
-                (setq org-collect-code-todos-next-id (1+ org-collect-code-todos-next-id))))
+                (replace-match todo-with-id)))
             (push entry todos)))
 
         ;; Handle string literals
@@ -107,8 +103,8 @@
                                                (forward-line (1- (- (line-number-at-pos) 1)))
                                                (move-to-column (current-column))
                                                (point)))))
-                      ;; We can't directly modify the string literal here, so we'll just increment the ID counter
-                      (setq org-collect-code-todos-next-id (1+ org-collect-code-todos-next-id))))
+                      ;; We can't directly modify the string literal here, but we've generated a UUID already
+                      ))
                   
                   (push entry todos))))))
 
@@ -164,31 +160,6 @@
 
 (add-hook 'org-after-todo-state-change-hook #'mark-source-todo-state)
 
-(defun org-collect-code-todos-save-next-id ()
-  "Save the next TODO ID as a file property in the TODOs org file."
-  (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-    (goto-char (point-min))
-    (unless (re-search-forward "^#\\+TODO_NEXT_ID:" nil t)
-      (goto-char (point-min))
-      (insert "#+TODO_NEXT_ID: " (number-to-string org-collect-code-todos-next-id) "\n\n"))
-    (goto-char (point-min))
-    (when (re-search-forward "^#\\+TODO_NEXT_ID:\\s-*\\([0-9]+\\)" nil t)
-      (replace-match (concat "#+TODO_NEXT_ID: " (number-to-string org-collect-code-todos-next-id)) nil nil))
-    (save-buffer)))
-
-(defun org-collect-code-todos-load-next-id ()
-  "Load the next TODO ID from the TODOs org file."
-  (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-    (goto-char (point-min))
-    (when (re-search-forward "^#\\+TODO_NEXT_ID:\\s-*\\([0-9]+\\)" nil t)
-      (setq org-collect-code-todos-next-id (string-to-number (match-string 1))))))
-
-;; Load the next ID when the package is loaded
-(org-collect-code-todos-load-next-id)
-
-;; Save the next ID after collecting TODOs
-(advice-add 'collect-todos-and-add-to-code-todos :after
-            (lambda (&rest _) (org-collect-code-todos-save-next-id)))
 
 (provide 'org-collect-code-todos)
 ;;; org-collect-code-todos.el ends here
