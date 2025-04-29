@@ -150,7 +150,7 @@
                                    (string= current-last current-heading-text)
                                    (not (string= current-heading-text todo-text)))
                           (message "Updating heading: '%s' -> '%s'" current-heading-text todo-text)
-                          (org-edit-headline (concat "TODO " todo-text))
+                          (org-edit-headline todo-text)
                           (org-entry-put (point) "LAST" todo-text))))))
                 
                 ;; If no existing entry was found or updated, add the new entry
@@ -189,7 +189,7 @@
 
 
             (let ((org-todo-text (org-get-heading t t t t)))  ; get current org heading
-              (message "org:'%s' vs code:'%s'" org-todo-text todo-text))
+              (message "org:'%s'" org-todo-text))
             (message "Found link - Path: %s, Line: %s, ID: %s" path line todo-id)
             (with-current-buffer (find-file-noselect path)
               (goto-char (point-min))
