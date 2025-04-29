@@ -1,4 +1,4 @@
-;;; org-collect-code-todos.el --- Description -*- lexical-binding: t; -*-
+;;; org-collect-code-TODO[fe4a3329] s.el --- Description -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2025
 ;;
@@ -8,7 +8,7 @@
 ;; Modified: April 29, 2025
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
-;; Homepage: https://github.com/elle/org-collect-code-todos
+;; Homepage: https://github.com/elle/org-collect-code-TODO[82129f23] s
 ;; Package-Requires: ((emacs "24.3"))
 ;;
 ;; This file is not part of GNU Emacs.
@@ -97,7 +97,7 @@
                                       original-line
                                       todo-text)))
                   
-                  ;; If this is a new TODO without an ID, we need to update the original buffer
+                  ;; If this is a new TODO[eefae85e] without an ID, we need to update the original buffer
                   (unless existing-id
                     (let ((pos-in-original (with-current-buffer (current-buffer)
                                              (save-excursion
@@ -141,7 +141,9 @@
                           (setq current-last (match-string 1))))
                       
                       ;; If :LAST: matches, update the heading and :LAST: property
-                      (when (and current-last (string= current-last last-text))
+                      (message "'%s' vs '%s' vs '%s'" current-last last-text todo-text)
+                      (when (and current-last (string= current-last todo-text))
+                        (message "matched!")
                         (org-edit-headline (concat "TODO " todo-text))
                         (org-entry-put (point) "LAST" todo-text)))))
                 
@@ -173,12 +175,15 @@
                 (line (match-string 2 heading-content))
                 (todo-id nil))
             
-            ;; Extract TODO_ID from properties
+            ;; Extract TODO[e451248a] _ID from properties
             (save-excursion
               (org-back-to-heading t)
               (when (re-search-forward ":TODO_ID:\\s-*\\([0-9]+\\)" (save-excursion (outline-next-heading) (point)) t)
                 (setq todo-id (match-string 1))))
-            
+
+
+            (let ((org-todo-text (org-get-heading t t t t)))  ; get current org heading
+              (message "org:'%s' vs code:'%s'" org-todo-text todo-text))
             (message "Found link - Path: %s, Line: %s, ID: %s" path line todo-id)
             (with-current-buffer (find-file-noselect path)
               (goto-char (point-min))
@@ -196,4 +201,4 @@
 
 
 (provide 'org-collect-code-todos)
-;;; org-collect-code-todos.el ends here
+;;; org-collect-code-TODO[d4ed979c] s.el ends here
