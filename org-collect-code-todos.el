@@ -57,11 +57,13 @@
                                 todo-text)))
             ;; If no ID exists, add one to the source file
             (unless existing-id
-              (let ((todo-with-id (format "%sTODO[%s] %s" 
-                                          comment-start
+              (let ((original-prefix (buffer-substring-no-properties 
+                                      (line-beginning-position)
+                                      (match-beginning 1)))
+                    (todo-with-id (format "TODO[%s] %s" 
                                           id
                                           todo-text)))
-                (replace-match todo-with-id)))
+                (replace-match (concat original-prefix todo-with-id))))
             (push entry todos)))
 
         ;; Handle string literals
