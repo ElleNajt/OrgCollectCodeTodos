@@ -253,13 +253,18 @@ If the TODO text has been updated, assign a new UUID."
                                   ;; Update the TODO_ID property in the org file
                                   (save-excursion
                                     (with-current-buffer (find-buffer-visiting org-collect-code-todos-file)
-                                      (org-back-to-heading t)
-                                      (org-entry-put (point) "TODO_ID" new-uuid)
-                                      (org-entry-put (point) "LAST" org-todo-text)
-                                      (save-buffer)
-                                      ;; Make the buffer read-only again
-                                      (when org-collect-code-todos-read-only
-                                        (read-only-mode 1))))))
+                                      ;; Temporarily make the buffer writable if needed
+                                      (let ((was-read-only (and org-collect-code-todos-read-only
+                                                               buffer-read-only)))
+                                        (when was-read-only
+                                          (read-only-mode -1))
+                                        (org-back-to-heading t)
+                                        (org-entry-put (point) "TODO_ID" new-uuid)
+                                        (org-entry-put (point) "LAST" org-todo-text)
+                                        (save-buffer)
+                                        ;; Restore read-only state
+                                        (when was-read-only
+                                          (read-only-mode 1)))))))
                             ;; Just update the TODO/DONE state
                             (replace-match (concat org-state "[" todo-id "] " current-text)))
                           (save-buffer)))
