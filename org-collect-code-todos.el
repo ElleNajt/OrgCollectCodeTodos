@@ -112,12 +112,44 @@
 
         (when todos
           (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-            (goto-char (point-max))
+            (org-mode)
             (dolist (todo todos)
-              (unless (save-excursion
-                        (goto-char (point-min))
-                        (search-forward todo nil t))
-                (insert "\n" todo)))
+              (let* ((todo-lines (split-string todo "\n"))
+                     (heading-line (car todo-lines))
+                     (id-line (nth 2 todo-lines))
+                     (last-line (nth 3 todo-lines))
+                     (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
+                                (match-string 1 id-line)))
+                     (todo-text (when (string-match "\\* TODO \\(.*\\) :" heading-line)
+                                  (match-string 1 heading-line)))
+                     (last-text (when (string-match ":LAST:\\s-*\\(.*\\)" last-line)
+                                  (match-string 1 last-line)))
+                     (existing-entry-found nil))
+                
+                ;; Check if we have an entry with the same ID
+                (save-excursion
+                  (goto-char (point-min))
+                  (when (and todo-id 
+                             (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t))
+                    (setq existing-entry-found t)
+                    ;; Go to the heading of this entry
+                    (org-back-to-heading t)
+                    ;; Check the :LAST: property
+                    (let ((current-last nil))
+                      (save-excursion
+                        (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
+                          (setq current-last (match-string 1))))
+                      
+                      ;; If :LAST: matches, update the heading and :LAST: property
+                      (when (and current-last (string= current-last last-text))
+                        (org-edit-headline (concat "TODO " todo-text))
+                        (org-entry-put (point) "LAST" todo-text)))))
+                
+                ;; If no existing entry was found or updated, add the new entry
+                (unless existing-entry-found
+                  (goto-char (point-max))
+                  (insert "\n" todo))))
+            
             (save-buffer)))))))
 
 
