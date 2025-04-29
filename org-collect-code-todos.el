@@ -164,7 +164,8 @@
 (add-hook 'after-save-hook #'collect-todos-and-add-to-code-todos)
 
 (defun mark-source-todo-state ()
-  "Update TODO/DONE state in source file when changed in code-todos.org."
+  "Update TODO/DONE state in source file when changed in code-todos.org.
+If the TODO text has been updated, assign a new UUID."
   (when (and (eq major-mode 'org-mode)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
              (member org-state '("TODO" "DONE")))
@@ -179,29 +180,54 @@
         (when (string-match "\\[\\[\\(.+?\\)::\\([0-9]+\\)\\]" heading-content)
           (let ((path (match-string 1 heading-content))
                 (line (match-string 2 heading-content))
-                (todo-id nil))
+                (todo-id nil)
+                (last-text nil))
             
-            ;; Extract TODO[e451248a] _ID from properties
+            ;; Extract TODO_ID and LAST property from properties
             (save-excursion
               (org-back-to-heading t)
-              (when (re-search-forward ":TODO_ID:\\s-*\\([0-9]+\\)" (save-excursion (outline-next-heading) (point)) t)
-                (setq todo-id (match-string 1))))
-
+              (when (re-search-forward ":TODO_ID:\\s-*\\([0-9a-f]+\\)" (save-excursion (outline-next-heading) (point)) t)
+                (setq todo-id (match-string 1)))
+              (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
+                (setq last-text (match-string 1))))
 
             (let ((org-todo-text (org-get-heading t t t t)))  ; get current org heading
-              (message "org:'%s'" org-todo-text))
-            (message "Found link - Path: %s, Line: %s, ID: %s" path line todo-id)
-            (with-current-buffer (find-file-noselect path)
-              (goto-char (point-min))
-              (forward-line (1- (string-to-number line)))
-
-              (if todo-id
-                  (when (re-search-forward (format "\\(TODO\\|DONE\\)\\[%s\\]" todo-id) (line-end-position) t)
-                    (replace-match (concat org-state "[" todo-id "]"))
-                    (save-buffer))
-                (when (re-search-forward "\\(TODO\\|DONE\\)" (line-end-position) t)
-                  (replace-match org-state)
-                  (save-buffer))))))))))
+              (message "org:'%s', last:'%s'" org-todo-text last-text)
+              
+              ;; Check if the heading text has changed from the last saved value
+              (let ((text-changed (not (string= org-todo-text last-text)))
+                    (new-id (if todo-id todo-id (substring (uuid-string) 0 8))))
+                
+                (message "Found link - Path: %s, Line: %s, ID: %s, Text changed: %s" 
+                         path line todo-id text-changed)
+                
+                (with-current-buffer (find-file-noselect path)
+                  (goto-char (point-min))
+                  (forward-line (1- (string-to-number line)))
+                  
+                  (if todo-id
+                      (when (re-search-forward (format "\\(TODO\\|DONE\\)\\[%s\\]\\s-*\\(.*\\)" todo-id) (line-end-position) t)
+                        (let ((current-text (match-string 2)))
+                          (if text-changed
+                              (progn
+                                ;; Generate a new UUID for the updated text
+                                (let ((new-uuid (substring (uuid-string) 0 8)))
+                                  (replace-match (concat org-state "[" new-uuid "] " org-todo-text))
+                                  ;; Update the TODO_ID property in the org file
+                                  (save-excursion
+                                    (with-current-buffer (find-buffer-visiting org-collect-code-todos-file)
+                                      (org-back-to-heading t)
+                                      (org-entry-put (point) "TODO_ID" new-uuid)
+                                      (org-entry-put (point) "LAST" org-todo-text)
+                                      (save-buffer)))))
+                            ;; Just update the TODO/DONE state
+                            (replace-match (concat org-state "[" todo-id "] " current-text)))
+                          (save-buffer)))
+                    
+                    ;; No ID found, handle plain TODO
+                    (when (re-search-forward "\\(TODO\\|DONE\\)\\s-*\\(.*\\)" (line-end-position) t)
+                      (replace-match (concat org-state " " org-todo-text))
+                      (save-buffer))))))))))))
 
 (add-hook 'org-after-todo-state-change-hook #'mark-source-todo-state)
 
