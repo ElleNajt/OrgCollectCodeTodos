@@ -48,10 +48,11 @@
                  (file-name (replace-regexp-in-string "[.-]" "_"
                                                       (file-name-nondirectory file-path)))
                  (id (or existing-id (substring (uuid-string) 0 8)))
-                 (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:END:\n[[%s::%d][%s]]\n"
+                 (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s::%d][%s]]\n"
                                 todo-text
                                 file-name
                                 id
+                                todo-text
                                 file-path
                                 line-number
                                 todo-text)))
@@ -87,10 +88,11 @@
                        (file-name (replace-regexp-in-string "[.-]" "_"
                                                             (file-name-nondirectory file-path)))
                        (id (or existing-id (substring (uuid-string) 0 8)))
-                       (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:END:\n[[%s::%d][%s]]\n"
+                       (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s::%d][%s]]\n"
                                       todo-text
                                       file-name
                                       id
+                                      todo-text
                                       file-path
                                       original-line
                                       todo-text)))
