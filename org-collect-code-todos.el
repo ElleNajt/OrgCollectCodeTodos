@@ -41,7 +41,7 @@
             todos)
         ;; Handle regular comments
         (goto-char (point-min))
-        (while (re-search-forward (format "%s.*\\(TODO\\(?:\\[\\([0-9]+\\)\\]\\)?\\)\\s-*\\(.*\\)" (regexp-quote comment-start)) nil t)
+        (while (re-search-forward (format "%s.*\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)\\s-*\\(.*\\)" (regexp-quote comment-start)) nil t)
           (let* ((line-number (line-number-at-pos))
                  (existing-id (match-string-no-properties 2))
                  (todo-text (string-trim (match-string-no-properties 3)))
@@ -57,8 +57,7 @@
                                 todo-text)))
             ;; If no ID exists, add one to the source file
             (unless existing-id
-              (let ((original-text (match-string 0))
-                    (todo-with-id (format "%s[%s] %s" 
+              (let ((todo-with-id (format "%sTODO[%s] %s" 
                                           comment-start
                                           id
                                           todo-text)))
@@ -79,13 +78,13 @@
             (with-temp-buffer
               (insert string-text)
               (goto-char (point-min))
-              (while (re-search-forward "TODO\\(?:\\[\\([0-9]+\\)\\]\\)?\\s-*\\(.*\\)" nil t)
+              (while (re-search-forward "TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\s-*\\(.*\\)" nil t)
                 (let* ((existing-id (match-string-no-properties 1))
                        (todo-text (string-trim (match-string-no-properties 2)))
                        (original-line (+ string-lines (line-number-at-pos (match-beginning 0))))
                        (file-name (replace-regexp-in-string "[.-]" "_"
                                                             (file-name-nondirectory file-path)))
-                       (id (or existing-id (number-to-string org-collect-code-todos-next-id)))
+                       (id (or existing-id (substring (uuid-string) 0 8)))
                        (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:END:\n[[%s::%d][%s]]\n"
                                       todo-text
                                       file-name
