@@ -58,9 +58,8 @@
             ;; If no ID exists, add one to the source file
             (unless existing-id
               (let ((original-text (match-string 0))
-                    (todo-with-id (format "%sTODO[%s] %s" 
-                                          (substring (match-string 0) 0 (- (length (match-string 0))
-                                                                           (+ (length (match-string 1)) (length (match-string 3)))))
+                    (todo-with-id (format "%s[%s] %s" 
+                                          comment-start
                                           id
                                           todo-text)))
                 (replace-match todo-with-id)))
