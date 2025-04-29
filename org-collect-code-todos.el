@@ -19,6 +19,16 @@
 ;;
 ;;; Code:
 
+(defgroup org-collect-code-todos nil
+  "Collect TODO comments from code files into an org file."
+  :group 'org
+  :prefix "org-collect-code-todos-")
+
+(defcustom org-collect-code-todos-file (expand-file-name "~/code-todos.org")
+  "File path where code TODOs will be collected."
+  :type 'file
+  :group 'org-collect-code-todos)
+
 
 
 (defun collect-todos-and-add-to-code-todos ()
@@ -63,7 +73,7 @@
                   (push entry todos))))))
 
         (when todos
-          (with-current-buffer (find-file-noselect "~/code-todos.org")
+          (with-current-buffer (find-file-noselect org-collect-code-todos-file)
             (goto-char (point-max))
             (dolist (todo todos)
               (unless (save-excursion
@@ -78,7 +88,7 @@
 (defun mark-source-todo-state ()
   "Update TODO/DONE state in source file when changed in code-todos.org."
   (when (and (eq major-mode 'org-mode)
-             (string= (buffer-file-name) (expand-file-name "~/code-todos.org"))
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
              (member org-state '("TODO" "DONE")))
     (save-excursion
       (org-back-to-heading t)

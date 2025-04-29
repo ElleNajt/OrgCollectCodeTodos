@@ -39,6 +39,13 @@ The package works automatically:
 
 ## Customization
 
+You can customize the following variables:
+
+```elisp
+;; Change the location of the TODOs org file
+(setq org-collect-code-todos-file "~/my-todos.org")
+```
+
 By default, the package:
 - Looks for "TODO" markers in comments and string literals
 - Saves collected TODOs to `~/code-todos.org`
