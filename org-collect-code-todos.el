@@ -35,6 +35,10 @@ When enabled, the file is read-only except when marking TODOs as done or archivi
   :type 'boolean
   :group 'org-collect-code-todos)
 
+(defvar-local org-collect-code-todos-keep-writable nil
+  "When non-nil, prevents the buffer from being made read-only.
+This is used during operations like changing TODO states or archiving.")
+
 (require 'uuid)
 
 (defun org-collect-code-todos-make-writable ()
@@ -348,7 +352,10 @@ If the TODO text has been updated, assign a new UUID."
                     (lambda (buf)
                       (when (buffer-live-p buf)
                         (with-current-buffer buf
-                          (unless org-collect-code-todos-keep-writable
+                          (if (local-variable-p 'org-collect-code-todos-keep-writable)
+                              (unless org-collect-code-todos-keep-writable
+                                (org-collect-code-todos-make-read-only))
+                            ;; If variable isn't available, just make read-only
                             (org-collect-code-todos-make-read-only)))))
                     (current-buffer))))
 
