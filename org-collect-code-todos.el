@@ -401,30 +401,28 @@ If the TODO text has been updated, assign a new UUID."
 
 (defun org-collect-code-todos-make-read-only-with-args (&rest _args)
   "Make the code-todos buffer read-only, ignoring any arguments."
-  ;; Only make read-only if we're not in the middle of a TODO[c907d2d9] state change
+  ;; Only make read-only if we're not in the middle of a state change
   (when (and (eq major-mode 'org-mode)
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
+             (org-collect-code-todos--is-todos-buffer-p)
              (not (bound-and-true-p org-collect-code-todos-keep-writable)))
     (org-collect-code-todos-make-read-only)))
 
 ;; Fix for org-before-todo-state-change-hook
 (defun org-collect-code-todos-before-todo-state-change (&rest _args)
   "Make the code-todos buffer writable before changing TODO state."
-  (when (and (eq major-mode 'org-mode)
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
-    (org-collect-code-todos-make-writable)
-    ;; Set a flag to indicate we're in the middle of a TODO[ccaacf04] state change
+  (when (org-collect-code-todos--is-todos-buffer-p)
+    (let ((inhibit-read-only t))
+      (read-only-mode -1))
+    ;; Set a flag to indicate we're in the middle of a state change
     (setq-local org-collect-code-todos-keep-writable t)))
 
-;; Add a function to clear the writable flag after TODO[5f9e80e4] state change is complete
+;; Add a function to clear the writable flag after state change is complete
 (defun org-collect-code-todos-after-todo-state-change (&rest _args)
   "Clear the writable flag after todo state change is complete."
-  (when (and (eq major-mode 'org-mode)
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
-    (setq-local org-collect-code-todos-keep-writable nil)))
+  (when (org-collect-code-todos--is-todos-buffer-p)
+    (setq-local org-collect-code-todos-keep-writable nil)
+    (when org-collect-code-todos-read-only
+      (read-only-mode 1))))
 
 ;; Add hooks for TODOs state change
 (add-hook 'org-before-todo-state-change-hook #'org-collect-code-todos-before-todo-state-change)
@@ -441,56 +439,49 @@ If the TODO text has been updated, assign a new UUID."
 (defun org-collect-code-todos-delayed-read-only (&rest _args)
   "Make the buffer read-only immediately after operations complete."
   (when (and (eq major-mode 'org-mode)
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+             (org-collect-code-todos--is-todos-buffer-p)
+             (not (bound-and-true-p org-collect-code-todos-keep-writable)))
     ;; Clear the writable flag
     (setq-local org-collect-code-todos-keep-writable nil)
     ;; Always make read-only
     (org-collect-code-todos-make-read-only)))
 
-;; Create safe wrappers with try-finally logic
-(defun org-collect-code-todos-safe-archive-subtree (&rest args)
+;; Create safe wrappers for org functions
+(defun org-collect-code-todos-safe-archive-subtree (orig-fun &rest args)
   "Safely execute org-archive-subtree with proper read-only handling."
-  (interactive "P")
-  (let ((was-todos-buffer (org-collect-code-todos--is-todos-buffer-p)))
-    (when was-todos-buffer
-      (org-collect-code-todos-make-writable)
-      (setq-local org-collect-code-todos-keep-writable t))
-    (unwind-protect
-        (condition-case err
-            (apply #'org-archive-subtree-default args)
-          (error
-           (message "Archive error: %s" (error-message-string err))
-           (signal (car err) (cdr err))))
-      ;; Always run this cleanup code, even if an error occurred
-      (when was-todos-buffer
-        (setq-local org-collect-code-todos-keep-writable nil)
-        (org-collect-code-todos-make-read-only)))))
+  (if (not (org-collect-code-todos--is-todos-buffer-p))
+      ;; Not our buffer, just call the original function
+      (apply orig-fun args)
+    ;; Our buffer, handle read-only state
+    (let ((inhibit-read-only t))
+      (unwind-protect
+          (progn
+            (read-only-mode -1)
+            (apply orig-fun args))
+        (when org-collect-code-todos-read-only
+          (read-only-mode 1))))))
 
-(defun org-collect-code-todos-safe-archive-subtree-default (&rest args)
-  "Safely execute org-archive-subtree-default with proper read-only handling."
-  (interactive "P")
-  (let ((was-todos-buffer (org-collect-code-todos--is-todos-buffer-p)))
-    (when was-todos-buffer
-      (org-collect-code-todos-make-writable)
-      (setq-local org-collect-code-todos-keep-writable t))
-    (unwind-protect
-        (condition-case err
-            (apply #'org-archive-subtree-default args)
-          (error
-           (message "Archive error: %s" (error-message-string err))
-           (signal (car err) (cdr err))))
-      ;; Always run this cleanup code, even if an error occurred
-      (when was-todos-buffer
-        (setq-local org-collect-code-todos-keep-writable nil)
-        (org-collect-code-todos-make-read-only)))))
+(defun org-collect-code-todos-safe-toggle-tag (orig-fun &rest args)
+  "Safely execute org-toggle-tag with proper read-only handling."
+  (if (not (org-collect-code-todos--is-todos-buffer-p))
+      ;; Not our buffer, just call the original function
+      (apply orig-fun args)
+    ;; Our buffer, handle read-only state
+    (let ((inhibit-read-only t))
+      (unwind-protect
+          (progn
+            (read-only-mode -1)
+            (apply orig-fun args))
+        (when org-collect-code-todos-read-only
+          (read-only-mode 1))))))
 
 ;; Make the buffer read-only again after operations
 (advice-add 'org-todo :after #'org-collect-code-todos-delayed-read-only)
 
-;; Replace the archive functions with our safe versions
+;; Replace the functions with our safe versions
 (advice-add 'org-archive-subtree :around #'org-collect-code-todos-safe-archive-subtree)
-(advice-add 'org-archive-subtree-default :around #'org-collect-code-todos-safe-archive-subtree-default)
+(advice-add 'org-archive-subtree-default :around #'org-collect-code-todos-safe-archive-subtree)
+(advice-add 'org-toggle-tag :around #'org-collect-code-todos-safe-toggle-tag)
 
 (provide 'org-collect-code-todos)
 
