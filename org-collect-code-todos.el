@@ -67,9 +67,9 @@ When enabled, the file is read-only except when marking TODOs as done or archivi
       (let ((file-path (buffer-file-name))
             (comment-start (string-trim comment-start))
             todos)
-        ;; Handle regular comments
+        ;; Handle regular comments - only match TODOs with spaces before and after
         (goto-char (point-min))
-        (while (re-search-forward (format "%s.*\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)\\s-*\\(.*\\)" (regexp-quote comment-start)) nil t)
+        (while (re-search-forward (format "%s.*\\s-\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)\\s-\\(.*\\)" (regexp-quote comment-start)) nil t)
           (let* ((line-number (line-number-at-pos))
                  (existing-id (match-string-no-properties 2))
                  (todo-text (string-trim (match-string-no-properties 3)))
@@ -110,7 +110,7 @@ When enabled, the file is read-only except when marking TODOs as done or archivi
             (with-temp-buffer
               (insert string-text)
               (goto-char (point-min))
-              (while (re-search-forward "TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\s-*\\(.*\\)" nil t)
+              (while (re-search-forward "\\s-TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\s-\\(.*\\)" nil t)
                 (let* ((existing-id (match-string-no-properties 1))
                        (todo-text (string-trim (match-string-no-properties 2)))
                        (original-line (+ string-lines (line-number-at-pos (match-beginning 0))))
@@ -249,7 +249,7 @@ If the TODO text has been updated, assign a new UUID."
                   (forward-line (1- (string-to-number line)))
                   
                   (if todo-id
-                      (when (re-search-forward (format "\\(TODO\\|DONE\\)\\[%s\\]\\s-*\\(.*\\)" todo-id) (line-end-position) t)
+                      (when (re-search-forward (format "\\s-\\(TODO\\|DONE\\)\\[%s\\]\\s-\\(.*\\)" todo-id) (line-end-position) t)
                         (let ((current-text (match-string 2)))
                           (if text-changed
                               (progn
@@ -276,7 +276,7 @@ If the TODO text has been updated, assign a new UUID."
                           (save-buffer)))
                     
                     ;; No ID found, handle plain TODO
-                    (when (re-search-forward "\\(TODO\\|DONE\\)\\s-*\\(.*\\)" (line-end-position) t)
+                    (when (re-search-forward "\\s-\\(TODO\\|DONE\\)\\s-\\(.*\\)" (line-end-position) t)
                       (replace-match (concat org-state " " org-todo-text))
                       (save-buffer))))))))))))
 
