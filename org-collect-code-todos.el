@@ -8,7 +8,7 @@
 ;; Modified: April 29, 2025
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
-;; Homepage: https://github.com/elle/org-collect-code-TODO[82129f23] s
+;; Homepage: https://github.com/elle/org-collect-code-todos
 ;; Package-Requires: ((emacs "24.3"))
 ;;
 ;; This file is not part of GNU Emacs.
@@ -254,7 +254,7 @@ LAST-TEXT is the previous text of the TODO item."
             ;; For plain TODOs, always add an ID
             (let ((new-uuid (substring (uuid-string) 0 8)))
               (replace-match (concat leading-space org-state "[" new-uuid "] " 
-                                    (if text-changed org-todo-text current-text)))
+                                     (if text-changed org-todo-text current-text)))
               ;; Return the new UUID
               (cons new-uuid (if text-changed org-todo-text current-text))))))
       
@@ -363,7 +363,7 @@ If the TODO text has been updated, assign a new UUID."
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     (setq-local org-collect-code-todos-keep-writable nil)))
 
-;; Add hooks for TODO[80d94275] state change
+;; Add hooks for TODOs state change
 (add-hook 'org-before-todo-state-change-hook #'org-collect-code-todos-before-todo-state-change)
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-after-todo-state-change)
 
@@ -374,7 +374,6 @@ If the TODO text has been updated, assign a new UUID."
 (advice-add 'org-todo :before #'org-collect-code-todos-make-writable-with-args)
 (advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable-with-args)
 (advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable-with-args)
-(advice-add 'org-ctrl-c-ctrl-c :before #'org-collect-code-todos-make-writable-with-args)
 
 ;; Make the buffer read-only again after operations, but with a delay to ensure
 ;; all processing is complete
@@ -401,7 +400,6 @@ If the TODO text has been updated, assign a new UUID."
 (advice-add 'org-todo :after #'org-collect-code-todos-delayed-read-only)
 (advice-add 'org-archive-subtree :after #'org-collect-code-todos-delayed-read-only)
 (advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-delayed-read-only)
-(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-delayed-read-only)
 
 (provide 'org-collect-code-todos)
 
