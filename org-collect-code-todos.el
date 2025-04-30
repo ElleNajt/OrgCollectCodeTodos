@@ -33,7 +33,7 @@
   "File path where archived TODOs will be stored.
 If nil, defaults to code-todos.archive.org in the same directory."
   :type '(choice (const :tag "Default" nil)
-                 (file :tag "Custom file"))
+          (file :tag "Custom file"))
   :group 'org-collect-code-todos)
 
 (defcustom org-collect-code-todos-read-only t
@@ -488,10 +488,7 @@ Ensures the entry is properly archived and removed from the current buffer."
             (apply orig-fun args)
             ;; Save both the current buffer and the archive buffer
             (save-buffer)
-            (when-let ((archive-buffer (get-file-buffer 
-                                        (org-extract-archive-file org-archive-location))))
-              (with-current-buffer archive-buffer
-                (save-buffer))))
+            )
         (when org-collect-code-todos-read-only
           (read-only-mode 1))))))
 
