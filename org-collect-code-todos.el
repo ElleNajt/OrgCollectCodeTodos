@@ -352,7 +352,7 @@ If the TODO text has been updated, assign a new UUID."
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     (org-collect-code-todos-make-writable)
-    ;; Set a flag to indicate we're in the middle of a TODO[2a959ec5] state change
+    ;; Set a flag to indicate we're in the middle of a TODO state change
     (setq-local org-collect-code-todos-keep-writable t)))
 
 ;; Add a function to clear the writable flag after TODO state change is complete
