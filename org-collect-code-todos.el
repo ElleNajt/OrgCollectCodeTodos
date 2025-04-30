@@ -81,9 +81,9 @@ This is used during operations like changing TODO states or archiving.")
       (let ((file-path (buffer-file-name))
             (comment-start (string-trim comment-start))
             todos)
-        ;; Handle regular comments - only match TODOs with spaces before and after
+        ;; Handle regular comments - match TODOs at beginning of line or after comment
         (goto-char (point-min))
-        (while (re-search-forward (format "%s.*[ \t]\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]\\(.*\\)" (regexp-quote comment-start)) nil t)
+        (while (re-search-forward (format "%s\\(.*?\\)\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)" (regexp-quote comment-start)) nil t)
           (let* ((line-number (line-number-at-pos))
                  (existing-id (match-string-no-properties 3))
                  (todo-text (string-trim (match-string-no-properties 4)))
@@ -157,8 +157,9 @@ This is used during operations like changing TODO states or archiving.")
             (message "Processing TODOs in %s" org-collect-code-todos-file)
             (org-mode)
             ;; Temporarily make the buffer writable
-            (when org-collect-code-todos-read-only
-              (read-only-mode -1))
+            (let ((inhibit-read-only t))
+              (when org-collect-code-todos-read-only
+                (read-only-mode -1))
             (dolist (todo todos)
               (let* ((todo-lines (split-string todo "\n"))
                      (heading-line (car todo-lines))
@@ -208,8 +209,9 @@ This is used during operations like changing TODO states or archiving.")
                   ;; If no existing entry was found or updated, add the new entry
                   (unless existing-entry-found
                     (message "Adding new entry for TODO: '%s' with ID: %s" todo-text todo-id)
-                    (goto-char (point-max))
-                    (insert "\n" todo))
+                    (let ((inhibit-read-only t))
+                      (goto-char (point-max))
+                      (insert "\n" todo)))
                   (message "Entry processed: existing=%s, id=%s, text='%s'"
                            existing-entry-found todo-id todo-text)))
 
