@@ -73,7 +73,7 @@ This is used during operations like changing TODO states or archiving.")
             todos)
         ;; Handle regular comments - only match TODOs with spaces before and after
         (goto-char (point-min))
-        (while (re-search-forward (format "%s.*\\s-\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)\\s-\\(.*\\)" (regexp-quote comment-start)) nil t)
+        (while (re-search-forward (format "%s.*[ \t]\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]\\(.*\\)" (regexp-quote comment-start)) nil t)
           (let* ((line-number (line-number-at-pos))
                  (existing-id (match-string-no-properties 2))
                  (todo-text (string-trim (match-string-no-properties 3)))
@@ -114,7 +114,7 @@ This is used during operations like changing TODO states or archiving.")
             (with-temp-buffer
               (insert string-text)
               (goto-char (point-min))
-              (while (re-search-forward "\\s-TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\s-\\(.*\\)" nil t)
+              (while (re-search-forward "[ \t]TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?[ \t]\\(.*\\)" nil t)
                 (let* ((existing-id (match-string-no-properties 1))
                        (todo-text (string-trim (match-string-no-properties 2)))
                        (original-line (+ string-lines (line-number-at-pos (match-beginning 0))))
@@ -204,6 +204,61 @@ This is used during operations like changing TODO states or archiving.")
 
 (add-hook 'after-save-hook #'collect-todos-and-add-to-code-todos)
 
+(defun org-collect-code-todos-update-source-file (path line todo-id org-state org-todo-text last-text)
+  "Update TODO state in source file.
+PATH is the source file path.
+LINE is the line number.
+TODO-ID is the unique identifier for the TODO.
+ORG-STATE is the new state (TODO or DONE).
+ORG-TODO-TEXT is the text of the TODO item.
+LAST-TEXT is the previous text of the TODO item."
+  (with-current-buffer (find-file-noselect path)
+    (goto-char (point-min))
+    (forward-line (1- (string-to-number line)))
+    
+    (let ((text-changed (not (string= org-todo-text last-text)))
+          (line-start (line-beginning-position))
+          (line-end (line-end-position))
+          (found nil))
+      
+      ;; First try to find a TODO with ID
+      (when todo-id
+        (goto-char line-start)
+        (when (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)" 
+                                         (regexp-quote todo-id))
+                                 line-end t)
+          (setq found t)
+          (let ((leading-space (match-string 1))
+                (current-text (match-string 3)))
+            (if text-changed
+                ;; Text changed - generate new UUID and update everything
+                (let ((new-uuid (substring (uuid-string) 0 8)))
+                  (replace-match (concat leading-space org-state "[" new-uuid "] " org-todo-text))
+                  ;; Return the new UUID to update the org entry
+                  (cons new-uuid org-todo-text))
+              ;; Just update the state
+              (replace-match (concat leading-space org-state "[" todo-id "] " current-text))
+              ;; Return nil to indicate no ID change needed
+              nil))))
+      
+      ;; If not found with ID, try to find a plain TODO
+      (unless found
+        (goto-char line-start)
+        (when (re-search-forward "\\([ \t]*\\)\\(TODO\\|DONE\\)[ \t]+\\(.*\\)" line-end t)
+          (setq found t)
+          (let ((leading-space (match-string 1))
+                (current-text (match-string 3)))
+            ;; For plain TODOs, always add an ID
+            (let ((new-uuid (substring (uuid-string) 0 8)))
+              (replace-match (concat leading-space org-state "[" new-uuid "] " 
+                                    (if text-changed org-todo-text current-text)))
+              ;; Return the new UUID
+              (cons new-uuid (if text-changed org-todo-text current-text))))))
+      
+      ;; Save the buffer if we made changes
+      (when found
+        (save-buffer)))))
+
 (defun mark-source-todo-state ()
   "Update TODO/DONE state in source file when changed in code-todos.org.
 If the TODO text has been updated, assign a new UUID."
@@ -243,48 +298,28 @@ If the TODO text has been updated, assign a new UUID."
             (let ((org-todo-text (org-get-heading t t t t)))  ; get current org heading
               (message "org:'%s', last:'%s'" org-todo-text last-text)
               
-              ;; Check if the heading text has changed from the last saved value
-              (let ((text-changed (not (string= org-todo-text last-text)))
-                    (new-id (if todo-id todo-id (substring (uuid-string) 0 8))))
+              ;; Use the centralized function to update the source file
+              (let ((update-result (org-collect-code-todos-update-source-file 
+                                    path line todo-id org-state org-todo-text last-text)))
                 
-                (message "Found link - Path: %s, Line: %s, ID: %s, Text changed: %s" 
-                         path line todo-id text-changed)
-                
-                (with-current-buffer (find-file-noselect path)
-                  (goto-char (point-min))
-                  (forward-line (1- (string-to-number line)))
-                  
-                  (if todo-id
-                      (when (re-search-forward (format "\\s-\\(TODO\\|DONE\\)\\[%s\\]\\s-\\(.*\\)" todo-id) (line-end-position) t)
-                        (let ((current-text (match-string 2)))
-                          (if text-changed
-                              (progn
-                                ;; Generate a new UUID for the updated text
-                                (let ((new-uuid (substring (uuid-string) 0 8)))
-                                  (replace-match (concat org-state "[" new-uuid "] " org-todo-text))
-                                  ;; Update the TODO_ID property in the org file
-                                  (save-excursion
-                                    (with-current-buffer (find-buffer-visiting org-collect-code-todos-file)
-                                      ;; Temporarily make the buffer writable if needed
-                                      (let ((was-read-only (and org-collect-code-todos-read-only
-                                                                buffer-read-only)))
-                                        (when was-read-only
-                                          (read-only-mode -1))
-                                        (org-back-to-heading t)
-                                        (org-entry-put (point) "TODO_ID" new-uuid)
-                                        (org-entry-put (point) "LAST" org-todo-text)
-                                        (save-buffer)
-                                        ;; Restore read-only state
-                                        (when was-read-only
-                                          (read-only-mode 1)))))))
-                            ;; Just update the TODO/DONE state
-                            (replace-match (concat org-state "[" todo-id "] " current-text)))
-                          (save-buffer)))
-                    
-                    ;; No ID found, handle plain TODO
-                    (when (re-search-forward "\\s-\\(TODO\\|DONE\\)\\s-\\(.*\\)" (line-end-position) t)
-                      (replace-match (concat org-state " " org-todo-text))
-                      (save-buffer))))))))))))
+                ;; If update-result is non-nil, we need to update the TODO_ID property
+                (when update-result
+                  (let ((new-uuid (car update-result))
+                        (new-text (cdr update-result)))
+                    (save-excursion
+                      (with-current-buffer (find-buffer-visiting org-collect-code-todos-file)
+                        ;; Temporarily make the buffer writable if needed
+                        (let ((was-read-only (and org-collect-code-todos-read-only
+                                                  buffer-read-only)))
+                          (when was-read-only
+                            (read-only-mode -1))
+                          (org-back-to-heading t)
+                          (org-entry-put (point) "TODO_ID" new-uuid)
+                          (org-entry-put (point) "LAST" new-text)
+                          (save-buffer)
+                          ;; Restore read-only state
+                          (when was-read-only
+                            (read-only-mode 1)))))))))))))))
 
 (add-hook 'org-after-todo-state-change-hook #'mark-source-todo-state)
 
