@@ -85,8 +85,8 @@ This is used during operations like changing TODO states or archiving.")
         (goto-char (point-min))
         (while (re-search-forward (format "%s.*[ \t]\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]\\(.*\\)" (regexp-quote comment-start)) nil t)
           (let* ((line-number (line-number-at-pos))
-                 (existing-id (match-string-no-properties 2))
-                 (todo-text (string-trim (match-string-no-properties 3)))
+                 (existing-id (match-string-no-properties 3))
+                 (todo-text (string-trim (match-string-no-properties 4)))
                  (file-name (replace-regexp-in-string "[.-]" "_"
                                                       (file-name-nondirectory file-path)))
                  (id (or existing-id (substring (uuid-string) 0 8)))
@@ -102,7 +102,7 @@ This is used during operations like changing TODO states or archiving.")
             (unless existing-id
               (let ((original-prefix (buffer-substring-no-properties 
                                       (line-beginning-position)
-                                      (match-beginning 1)))
+                                      (match-beginning 2)))
                     (todo-with-id (format "TODO[%s] %s" 
                                           id
                                           todo-text)))
@@ -123,9 +123,9 @@ This is used during operations like changing TODO states or archiving.")
             (with-temp-buffer
               (insert string-text)
               (goto-char (point-min))
-              (while (re-search-forward "[ \t]TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?[ \t]\\(.*\\)" nil t)
-                (let* ((existing-id (match-string-no-properties 1))
-                       (todo-text (string-trim (match-string-no-properties 2)))
+              (while (re-search-forward "\\(^\\|[ \t]\\)TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?[ \t]\\(.*\\)" nil t)
+                (let* ((existing-id (match-string-no-properties 2))
+                       (todo-text (string-trim (match-string-no-properties 3)))
                        (original-line (+ string-lines (line-number-at-pos (match-beginning 0))))
                        (file-name (replace-regexp-in-string "[.-]" "_"
                                                             (file-name-nondirectory file-path)))
@@ -236,7 +236,7 @@ LAST-TEXT is the previous text of the TODO item."
       ;; Search for the TODO[a6e3db8b] with the specific ID
       (goto-char (point-min))
       (while (and (not found)
-                  (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
+                  (re-search-forward (format "\\(^\\|[ \t]\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
                                              (regexp-quote todo-id))
                                      nil t))
         (setq found t)
