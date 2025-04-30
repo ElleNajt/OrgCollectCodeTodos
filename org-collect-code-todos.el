@@ -179,37 +179,37 @@ This is used during operations like changing TODO states or archiving.")
                        (setq existing-entry-found nil)))
                     
                     (when existing-entry-found
-                    ;; Check the :LAST: property
-                    (let ((current-last nil))
-                      (save-excursion
-                        (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
-                          (setq current-last (match-string 1))))
-                      
-                      ;; Get the current heading text (without TODO[1c76e5ad] keyword and tags)
-                      (let ((current-heading-text (org-get-heading t t t t)))
-                        ;; If :LAST: matches the current heading text but differs from the code todo-text,
-                        ;; update the heading and :LAST: property
-                        (message "EXISTING ENTRY - Current heading: '%s', LAST: '%s', New code todo: '%s'" 
-                                 current-heading-text current-last todo-text)
-                        (when (and current-last 
-                                   (string= current-last current-heading-text)
-                                   (not (string= current-heading-text todo-text)))
-                          (message "UPDATING heading: '%s' -> '%s'" current-heading-text todo-text)
-                          (org-edit-headline todo-text)
-                          (org-entry-put (point) "LAST" todo-text))))))
-                
-                ;; If no existing entry was found or updated, add the new entry
-                (unless existing-entry-found
-                  (message "Adding new entry for TODO: '%s' with ID: %s" todo-text todo-id)
-                  (goto-char (point-max))
-                  (insert "\n" todo))
-                (message "Entry processed: existing=%s, id=%s, text='%s'" 
-                         existing-entry-found todo-id todo-text)))
-            
-            (save-buffer)
-            ;; Restore read-only state if needed
-            (when org-collect-code-todos-read-only
-              (read-only-mode 1))))))))
+                      ;; Check the :LAST: property
+                      (let ((current-last nil))
+                        (save-excursion
+                          (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
+                            (setq current-last (match-string 1))))
+
+                        ;; Get the current heading text (without TODO[1c76e5ad] keyword and tags)
+                        (let ((current-heading-text (org-get-heading t t t t)))
+                          ;; If :LAST: matches the current heading text but differs from the code todo-text,
+                          ;; update the heading and :LAST: property
+                          (message "EXISTING ENTRY - Current heading: '%s', LAST: '%s', New code todo: '%s'"
+                                   current-heading-text current-last todo-text)
+                          (when (and current-last
+                                     (string= current-last current-heading-text)
+                                     (not (string= current-heading-text todo-text)))
+                            (message "UPDATING heading: '%s' -> '%s'" current-heading-text todo-text)
+                            (org-edit-headline todo-text)
+                            (org-entry-put (point) "LAST" todo-text))))))
+
+                  ;; If no existing entry was found or updated, add the new entry
+                  (unless existing-entry-found
+                    (message "Adding new entry for TODO: '%s' with ID: %s" todo-text todo-id)
+                    (goto-char (point-max))
+                    (insert "\n" todo))
+                  (message "Entry processed: existing=%s, id=%s, text='%s'"
+                           existing-entry-found todo-id todo-text)))
+
+              (save-buffer)
+              ;; Restore read-only state if needed
+              (when org-collect-code-todos-read-only
+                (read-only-mode 1)))))))))
 
 
 (add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
@@ -225,11 +225,11 @@ LAST-TEXT is the previous text of the TODO item."
     (let ((text-changed (not (string= org-todo-text last-text)))
           (found nil)
           (result nil))
-      
+
       ;; Search for the TODO[a6e3db8b] with the specific ID
       (goto-char (point-min))
       (while (and (not found)
-                  (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)" 
+                  (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
                                              (regexp-quote todo-id))
                                      nil t))
         (setq found t)
@@ -245,11 +245,11 @@ LAST-TEXT is the previous text of the TODO item."
             (replace-match (concat leading-space org-state "[" todo-id "] " current-text))
             ;; Return nil to indicate no ID change needed
             (setq result nil))))
-      
+
       ;; Save the buffer if we made changes
       (when found
         (save-buffer))
-      
+
       result)))
 
 (defun org-collect-code-todos-update-source-file (path line todo-id org-state org-todo-text last-text)
@@ -263,16 +263,16 @@ LAST-TEXT is the previous text of the TODO item."
   (with-current-buffer (find-file-noselect path)
     (goto-char (point-min))
     (forward-line (1- (string-to-number line)))
-    
+
     (let ((text-changed (not (string= org-todo-text last-text)))
           (line-start (line-beginning-position))
           (line-end (line-end-position))
           (found nil))
-      
+
       ;; First try to find a TODO/DONE with ID
       (when todo-id
         (goto-char line-start)
-        (when (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)" 
+        (when (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
                                          (regexp-quote todo-id))
                                  line-end t)
           (setq found t)
@@ -288,7 +288,7 @@ LAST-TEXT is the previous text of the TODO item."
               (replace-match (concat leading-space org-state "[" todo-id "] " current-text))
               ;; Return nil to indicate no ID change needed
               nil))))
-      
+
       ;; If not found with ID, try to find a plain TODO
       (unless found
         (goto-char line-start)
@@ -298,11 +298,11 @@ LAST-TEXT is the previous text of the TODO item."
                 (current-text (match-string 3)))
             ;; For plain TODOs, always add an ID
             (let ((new-uuid (substring (uuid-string) 0 8)))
-              (replace-match (concat leading-space org-state "[" new-uuid "] " 
+              (replace-match (concat leading-space org-state "[" new-uuid "] "
                                      (if text-changed org-todo-text current-text)))
               ;; Return the new UUID
               (cons new-uuid (if text-changed org-todo-text current-text))))))
-      
+
       ;; Save the buffer if we made changes
       (when found
         (save-buffer)))))
@@ -311,82 +311,82 @@ LAST-TEXT is the previous text of the TODO item."
   "Update TODO/DONE state in source file when changed in code-todos.org.
 If the TODO text has been updated, assign a new UUID."
   (cl-block org-collect-code-todos-mark-source-todo-state
-  ;; Make sure the buffer is writable for this operation
-  (when (and (eq major-mode 'org-mode)
-             (org-collect-code-todos--is-todos-buffer-p))
-    (org-collect-code-todos-make-writable)
-    ;; Ensure we don't immediately revert to read-only
-    (setq-local org-collect-code-todos-keep-writable t))
-  
-  (when (and (eq major-mode 'org-mode)
-             (org-collect-code-todos--is-todos-buffer-p)
-             (member org-state '("TODO" "DONE")))
-    (save-excursion
-      (condition-case nil
-          (org-back-to-heading t)
-        (error
-         (message "Error: Not on a heading when changing TODO state")
-         (setq org-state nil)
-         (cl-return-from org-collect-code-todos-mark-source-todo-state nil)))
-      
-      (let ((heading-content (buffer-substring-no-properties
-                              (point)
-                              (save-excursion
-                                (condition-case nil
-                                    (outline-next-heading)
-                                  (error (goto-char (point-max))))
-                                (point)))))
-        (message "Heading content: %s" heading-content)
-        (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
-          (let ((path (match-string 1 heading-content))
-                (todo-id nil)
-                (last-text nil))
-            
-            ;; Extract TODO_ID and LAST property from properties
-            (save-excursion
-              (condition-case nil
-                  (org-back-to-heading t)
-                (error
-                 (message "Error: Could not go back to heading")
-                 (cl-return-from org-collect-code-todos-mark-source-todo-state nil)))
-              
-              (let ((next-heading-pos (save-excursion
-                                        (condition-case nil
-                                            (outline-next-heading)
-                                          (error (goto-char (point-max))))
-                                        (point))))
-                (when (re-search-forward ":TODO_ID:\\s-*\\([0-9a-f]+\\)" next-heading-pos t)
-                (setq todo-id (match-string 1)))
-              (when (re-search-forward ":LAST:\\s-*\\(.*\\)" next-heading-pos t)
-                (setq last-text (match-string 1))))
+    ;; Make sure the buffer is writable for this operation
+    (when (and (eq major-mode 'org-mode)
+               (org-collect-code-todos--is-todos-buffer-p))
+      (org-collect-code-todos-make-writable)
+      ;; Ensure we don't immediately revert to read-only
+      (setq-local org-collect-code-todos-keep-writable t))
 
-            ;; Only proceed if we have a valid TODO_ID
-            (when todo-id
-              (let ((org-todo-text (org-get-heading t t t t)))  ; get current org heading
-                (message "org:'%s', last:'%s', id:'%s'" org-todo-text last-text todo-id)
-                
-                ;; Use the centralized function to update the source file
-                (let ((update-result (org-collect-code-todos-update-source-file-by-id
-                                      path todo-id org-state org-todo-text last-text)))
-                  
-                  ;; If update-result is non-nil, we need to update the TODO_ID property
-                  (when update-result
-                    (let ((new-uuid (car update-result))
-                          (new-text (cdr update-result)))
-                      (save-excursion
-                        (with-current-buffer (find-buffer-visiting org-collect-code-todos-file)
-                          ;; Temporarily make the buffer writable if needed
-                          (let ((was-read-only (and org-collect-code-todos-read-only
-                                                    buffer-read-only)))
-                            (when was-read-only
-                              (read-only-mode -1))
-                            (org-back-to-heading t)
-                            (org-entry-put (point) "TODO_ID" new-uuid)
-                            (org-entry-put (point) "LAST" new-text)
-                            (save-buffer)
-                            ;; Restore read-only state
-                            (when was-read-only
-                              (read-only-mode 1))))))))))))))))
+    (when (and (eq major-mode 'org-mode)
+               (org-collect-code-todos--is-todos-buffer-p)
+               (member org-state '("TODO" "DONE")))
+      (save-excursion
+        (condition-case nil
+            (org-back-to-heading t)
+          (error
+           (message "Error: Not on a heading when changing TODO state")
+           (setq org-state nil)
+           (cl-return-from org-collect-code-todos-mark-source-todo-state nil)))
+
+        (let ((heading-content (buffer-substring-no-properties
+                                (point)
+                                (save-excursion
+                                  (condition-case nil
+                                      (outline-next-heading)
+                                    (error (goto-char (point-max))))
+                                  (point)))))
+          (message "Heading content: %s" heading-content)
+          (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
+            (let ((path (match-string 1 heading-content))
+                  (todo-id nil)
+                  (last-text nil))
+
+              ;; Extract TODO_ID and LAST property from properties
+              (save-excursion
+                (condition-case nil
+                    (org-back-to-heading t)
+                  (error
+                   (message "Error: Could not go back to heading")
+                   (cl-return-from org-collect-code-todos-mark-source-todo-state nil)))
+
+                (let ((next-heading-pos (save-excursion
+                                          (condition-case nil
+                                              (outline-next-heading)
+                                            (error (goto-char (point-max))))
+                                          (point))))
+                  (when (re-search-forward ":TODO_ID:\\s-*\\([0-9a-f]+\\)" next-heading-pos t)
+                    (setq todo-id (match-string 1)))
+                  (when (re-search-forward ":LAST:\\s-*\\(.*\\)" next-heading-pos t)
+                    (setq last-text (match-string 1))))
+
+                ;; Only proceed if we have a valid TODO_ID
+                (when todo-id
+                  (let ((org-todo-text (org-get-heading t t t t)))  ; get current org heading
+                    (message "org:'%s', last:'%s', id:'%s'" org-todo-text last-text todo-id)
+
+                    ;; Use the centralized function to update the source file
+                    (let ((update-result (org-collect-code-todos-update-source-file-by-id
+                                          path todo-id org-state org-todo-text last-text)))
+
+                      ;; If update-result is non-nil, we need to update the TODO_ID property
+                      (when update-result
+                        (let ((new-uuid (car update-result))
+                              (new-text (cdr update-result)))
+                          (save-excursion
+                            (with-current-buffer (find-buffer-visiting org-collect-code-todos-file)
+                              ;; Temporarily make the buffer writable if needed
+                              (let ((was-read-only (and org-collect-code-todos-read-only
+                                                        buffer-read-only)))
+                                (when was-read-only
+                                  (read-only-mode -1))
+                                (org-back-to-heading t)
+                                (org-entry-put (point) "TODO_ID" new-uuid)
+                                (org-entry-put (point) "LAST" new-text)
+                                (save-buffer)
+                                ;; Restore read-only state
+                                (when was-read-only
+                                  (read-only-mode 1))))))))))))))))))
 
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
 
