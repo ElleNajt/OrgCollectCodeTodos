@@ -296,19 +296,26 @@ If the TODO text has been updated, assign a new UUID."
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 
 ;; Make the buffer temporarily writable for specific operations
-(advice-add 'org-todo :before #'org-collect-code-todos-make-writable)
-(advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable)
-(advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable)
+(advice-add 'org-todo :before #'org-collect-code-todos-make-writable-with-args)
+(advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable-with-args)
+(advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable-with-args)
 
 ;; Also make writable when changing TODO state through other means
-(advice-add 'org-after-todo-state-change-hook :before #'org-collect-code-todos-make-writable)
-(advice-add 'org-ctrl-c-ctrl-c :before #'org-collect-code-todos-make-writable)
+(defun org-collect-code-todos-make-writable-with-args (&rest _args)
+  "Make the code-todos buffer writable, ignoring any arguments."
+  (org-collect-code-todos-make-writable))
+
+(advice-add 'org-ctrl-c-ctrl-c :before #'org-collect-code-todos-make-writable-with-args)
 
 ;; Make the buffer read-only again after operations
-(advice-add 'org-todo :after #'org-collect-code-todos-make-read-only)
-(advice-add 'org-archive-subtree :after #'org-collect-code-todos-make-read-only)
-(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-make-read-only)
-(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-make-read-only)
+(defun org-collect-code-todos-make-read-only-with-args (&rest _args)
+  "Make the code-todos buffer read-only, ignoring any arguments."
+  (org-collect-code-todos-make-read-only))
+
+(advice-add 'org-todo :after #'org-collect-code-todos-make-read-only-with-args)
+(advice-add 'org-archive-subtree :after #'org-collect-code-todos-make-read-only-with-args)
+(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-make-read-only-with-args)
+(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-make-read-only-with-args)
 
 (provide 'org-collect-code-todos)
 ;;; org-collect-code-TODO[d4ed979c] s.el ends here
