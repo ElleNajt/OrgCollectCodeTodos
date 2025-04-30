@@ -487,8 +487,7 @@ Ensures the entry is properly archived and removed from the current buffer."
             ;; Apply the original archive function
             (apply orig-fun args)
             ;; Save both the current buffer and the archive buffer
-            (save-buffer)
-            )
+            (save-buffer))
         (when org-collect-code-todos-read-only
           (read-only-mode 1))))))
 
