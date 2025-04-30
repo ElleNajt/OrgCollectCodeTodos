@@ -207,7 +207,9 @@ If the TODO text has been updated, assign a new UUID."
   (when (and (eq major-mode 'org-mode)
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
-    (org-collect-code-todos-make-writable))
+    (org-collect-code-todos-make-writable)
+    ;; Ensure we don't immediately revert to read-only
+    (setq-local org-collect-code-todos-keep-writable t))
   
   (when (and (eq major-mode 'org-mode)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
@@ -285,11 +287,21 @@ If the TODO text has been updated, assign a new UUID."
 ;; Define wrapper functions that accept arguments
 (defun org-collect-code-todos-make-writable-with-args (&rest _args)
   "Make the code-todos buffer writable, ignoring any arguments."
-  (org-collect-code-todos-make-writable))
+  (org-collect-code-todos-make-writable)
+  ;; Set a flag to indicate we're in the middle of an operation
+  (when (and (eq major-mode 'org-mode)
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    (setq-local org-collect-code-todos-keep-writable t)))
 
 (defun org-collect-code-todos-make-read-only-with-args (&rest _args)
   "Make the code-todos buffer read-only, ignoring any arguments."
-  (org-collect-code-todos-make-read-only))
+  ;; Only make read-only if we're not in the middle of a TODO state change
+  (when (and (eq major-mode 'org-mode)
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
+             (not (bound-and-true-p org-collect-code-todos-keep-writable)))
+    (org-collect-code-todos-make-read-only)))
 
 ;; Fix for org-before-todo-state-change-hook
 (defun org-collect-code-todos-before-todo-state-change (&rest _args)
@@ -297,10 +309,21 @@ If the TODO text has been updated, assign a new UUID."
   (when (and (eq major-mode 'org-mode)
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
-    (org-collect-code-todos-make-writable)))
+    (org-collect-code-todos-make-writable)
+    ;; Set a flag to indicate we're in the middle of a TODO state change
+    (setq-local org-collect-code-todos-keep-writable t)))
 
-;; Add hook with the fixed function
+;; Add a function to clear the writable flag after todo state change is complete
+(defun org-collect-code-todos-after-todo-state-change (&rest _args)
+  "Clear the writable flag after todo state change is complete."
+  (when (and (eq major-mode 'org-mode)
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    (setq-local org-collect-code-todos-keep-writable nil)))
+
+;; Add hooks for todo state change
 (add-hook 'org-before-todo-state-change-hook #'org-collect-code-todos-before-todo-state-change)
+(add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-after-todo-state-change)
 
 ;; Make the buffer read-only when opened
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
@@ -311,11 +334,29 @@ If the TODO text has been updated, assign a new UUID."
 (advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable-with-args)
 (advice-add 'org-ctrl-c-ctrl-c :before #'org-collect-code-todos-make-writable-with-args)
 
+;; Make the buffer read-only again after operations, but with a delay to ensure
+;; all processing is complete
+(defun org-collect-code-todos-delayed-read-only (&rest _args)
+  "Make the buffer read-only after a short delay to ensure processing is complete."
+  (when (and (eq major-mode 'org-mode)
+             (buffer-file-name)
+             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+    ;; Clear the writable flag
+    (setq-local org-collect-code-todos-keep-writable nil)
+    ;; Use a timer to delay setting read-only to ensure all processing is complete
+    (run-with-timer 0.5 nil
+                    (lambda (buf)
+                      (when (buffer-live-p buf)
+                        (with-current-buffer buf
+                          (unless org-collect-code-todos-keep-writable
+                            (org-collect-code-todos-make-read-only)))))
+                    (current-buffer))))
+
 ;; Make the buffer read-only again after operations
-(advice-add 'org-todo :after #'org-collect-code-todos-make-read-only-with-args)
-(advice-add 'org-archive-subtree :after #'org-collect-code-todos-make-read-only-with-args)
-(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-make-read-only-with-args)
-(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-make-read-only-with-args)
+(advice-add 'org-todo :after #'org-collect-code-todos-delayed-read-only)
+(advice-add 'org-archive-subtree :after #'org-collect-code-todos-delayed-read-only)
+(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-delayed-read-only)
+(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-delayed-read-only)
 
 (provide 'org-collect-code-todos)
 ;;; org-collect-code-TODO[d4ed979c] s.el ends here
