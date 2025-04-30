@@ -409,11 +409,9 @@ If the TODO text has been updated, assign a new UUID."
 
 ;; Make the buffer temporarily writable for specific operations
 (advice-add 'org-todo :before #'org-collect-code-todos-make-writable-with-args)
-(advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable-with-args)
-(advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable-with-args)
+;; Archive operations are now handled by our safe wrappers with try-finally
 
-;; Make the buffer read-only again after operations, but with a delay to ensure
-;; all processing is complete
+;; Make the buffer read-only again after operations
 (defun org-collect-code-todos-delayed-read-only (&rest _args)
   "Make the buffer read-only immediately after operations complete."
   (when (and (eq major-mode 'org-mode)
@@ -421,15 +419,40 @@ If the TODO text has been updated, assign a new UUID."
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     ;; Clear the writable flag
     (setq-local org-collect-code-todos-keep-writable nil)
-    ;; Make read-only immediately if the flag allows it
-    (unless (and (local-variable-p 'org-collect-code-todos-keep-writable)
-                 org-collect-code-todos-keep-writable)
+    ;; Always make read-only
+    (org-collect-code-todos-make-read-only)))
+
+;; Create safe wrappers with try-finally logic
+(defun org-collect-code-todos-safe-archive-subtree (&rest args)
+  "Safely execute org-archive-subtree with proper read-only handling."
+  (interactive "P")
+  (when (org-collect-code-todos--is-todos-buffer-p)
+    (org-collect-code-todos-make-writable)
+    (setq-local org-collect-code-todos-keep-writable t))
+  (unwind-protect
+      (apply #'org-archive-subtree-default args)
+    (when (org-collect-code-todos--is-todos-buffer-p)
+      (setq-local org-collect-code-todos-keep-writable nil)
+      (org-collect-code-todos-make-read-only))))
+
+(defun org-collect-code-todos-safe-archive-subtree-default (&rest args)
+  "Safely execute org-archive-subtree-default with proper read-only handling."
+  (interactive "P")
+  (when (org-collect-code-todos--is-todos-buffer-p)
+    (org-collect-code-todos-make-writable)
+    (setq-local org-collect-code-todos-keep-writable t))
+  (unwind-protect
+      (apply #'org-archive-subtree-default args)
+    (when (org-collect-code-todos--is-todos-buffer-p)
+      (setq-local org-collect-code-todos-keep-writable nil)
       (org-collect-code-todos-make-read-only))))
 
 ;; Make the buffer read-only again after operations
 (advice-add 'org-todo :after #'org-collect-code-todos-delayed-read-only)
-(advice-add 'org-archive-subtree :after #'org-collect-code-todos-delayed-read-only)
-(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-delayed-read-only)
+
+;; Replace the archive functions with our safe versions
+(advice-add 'org-archive-subtree :around #'org-collect-code-todos-safe-archive-subtree)
+(advice-add 'org-archive-subtree-default :around #'org-collect-code-todos-safe-archive-subtree-default)
 
 (provide 'org-collect-code-todos)
 
