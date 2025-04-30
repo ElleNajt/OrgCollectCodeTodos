@@ -415,21 +415,16 @@ If the TODO text has been updated, assign a new UUID."
 ;; Make the buffer read-only again after operations, but with a delay to ensure
 ;; all processing is complete
 (defun org-collect-code-todos-delayed-read-only (&rest _args)
-  "Make the buffer read-only after a short delay to ensure processing is complete."
+  "Make the buffer read-only immediately after operations complete."
   (when (and (eq major-mode 'org-mode)
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     ;; Clear the writable flag
     (setq-local org-collect-code-todos-keep-writable nil)
-    ;; Use a timer to delay setting read-only to ensure all processing is complete
-    (run-with-timer 0.1 nil
-                    (lambda (buf)
-                      (when (buffer-live-p buf)
-                        (with-current-buffer buf
-                          (unless (and (local-variable-p 'org-collect-code-todos-keep-writable)
-                                       org-collect-code-todos-keep-writable)
-                            (org-collect-code-todos-make-read-only)))))
-                    (current-buffer))))
+    ;; Make read-only immediately if the flag allows it
+    (unless (and (local-variable-p 'org-collect-code-todos-keep-writable)
+                 org-collect-code-todos-keep-writable)
+      (org-collect-code-todos-make-read-only))))
 
 ;; Make the buffer read-only again after operations
 (advice-add 'org-todo :after #'org-collect-code-todos-delayed-read-only)
