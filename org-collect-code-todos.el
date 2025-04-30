@@ -40,6 +40,7 @@ When enabled, the file is read-only except when marking TODOs as done or archivi
 This is used during operations like changing TODO states or archiving.")
 
 (require 'uuid)
+(require 'cl-lib)
 
 (defun org-collect-code-todos--is-todos-buffer-p ()
   "Check if current buffer is the code-todos file."
@@ -171,7 +172,13 @@ This is used during operations like changing TODO states or archiving.")
                              (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t))
                     (setq existing-entry-found t)
                     ;; Go to the heading of this entry
-                    (org-back-to-heading t)
+                    (condition-case nil
+                        (org-back-to-heading t)
+                      (error
+                       (message "Error: Could not find heading for TODO ID %s" todo-id)
+                       (setq existing-entry-found nil)))
+                    
+                    (when existing-entry-found
                     ;; Check the :LAST: property
                     (let ((current-last nil))
                       (save-excursion
@@ -303,6 +310,7 @@ LAST-TEXT is the previous text of the TODO item."
 (defun org-collect-code-todos-mark-source-todo-state ()
   "Update TODO/DONE state in source file when changed in code-todos.org.
 If the TODO text has been updated, assign a new UUID."
+  (cl-block org-collect-code-todos-mark-source-todo-state
   ;; Make sure the buffer is writable for this operation
   (when (and (eq major-mode 'org-mode)
              (org-collect-code-todos--is-todos-buffer-p))
@@ -314,11 +322,19 @@ If the TODO text has been updated, assign a new UUID."
              (org-collect-code-todos--is-todos-buffer-p)
              (member org-state '("TODO" "DONE")))
     (save-excursion
-      (org-back-to-heading t)
+      (condition-case nil
+          (org-back-to-heading t)
+        (error
+         (message "Error: Not on a heading when changing TODO state")
+         (setq org-state nil)
+         (cl-return-from org-collect-code-todos-mark-source-todo-state nil)))
+      
       (let ((heading-content (buffer-substring-no-properties
                               (point)
                               (save-excursion
-                                (outline-next-heading)
+                                (condition-case nil
+                                    (outline-next-heading)
+                                  (error (goto-char (point-max))))
                                 (point)))))
         (message "Heading content: %s" heading-content)
         (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
@@ -328,10 +344,20 @@ If the TODO text has been updated, assign a new UUID."
             
             ;; Extract TODO_ID and LAST property from properties
             (save-excursion
-              (org-back-to-heading t)
-              (when (re-search-forward ":TODO_ID:\\s-*\\([0-9a-f]+\\)" (save-excursion (outline-next-heading) (point)) t)
+              (condition-case nil
+                  (org-back-to-heading t)
+                (error
+                 (message "Error: Could not go back to heading")
+                 (cl-return-from org-collect-code-todos-mark-source-todo-state nil)))
+              
+              (let ((next-heading-pos (save-excursion
+                                        (condition-case nil
+                                            (outline-next-heading)
+                                          (error (goto-char (point-max))))
+                                        (point))))
+                (when (re-search-forward ":TODO_ID:\\s-*\\([0-9a-f]+\\)" next-heading-pos t)
                 (setq todo-id (match-string 1)))
-              (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
+              (when (re-search-forward ":LAST:\\s-*\\(.*\\)" next-heading-pos t)
                 (setq last-text (match-string 1))))
 
             ;; Only proceed if we have a valid TODO_ID
