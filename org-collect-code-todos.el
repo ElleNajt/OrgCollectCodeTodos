@@ -178,7 +178,7 @@ This is used during operations like changing TODO states or archiving.")
                         (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
                           (setq current-last (match-string 1))))
                       
-                      ;; Get the current heading text (without TODO keyword and tags)
+                      ;; Get the current heading text (without TODO[1c76e5ad] keyword and tags)
                       (let ((current-heading-text (org-get-heading t t t t)))
                         ;; If :LAST: matches the current heading text but differs from the code todo-text,
                         ;; update the heading and :LAST: property
@@ -219,7 +219,7 @@ LAST-TEXT is the previous text of the TODO item."
           (found nil)
           (result nil))
       
-      ;; Search for the TODO with the specific ID
+      ;; Search for the TODO[a6e3db8b] with the specific ID
       (goto-char (point-min))
       (while (and (not found)
                   (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)" 
@@ -321,7 +321,7 @@ If the TODO text has been updated, assign a new UUID."
                                 (outline-next-heading)
                                 (point)))))
         (message "Heading content: %s" heading-content)
-        (when (string-match "\\[\\[\\(.+?\\)::" heading-content)
+        (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
           (let ((path (match-string 1 heading-content))
                 (todo-id nil)
                 (last-text nil))
@@ -334,6 +334,7 @@ If the TODO text has been updated, assign a new UUID."
               (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
                 (setq last-text (match-string 1))))
 
+            ;; Only proceed if we have a valid TODO_ID
             (when todo-id
               (let ((org-todo-text (org-get-heading t t t t)))  ; get current org heading
                 (message "org:'%s', last:'%s', id:'%s'" org-todo-text last-text todo-id)
@@ -359,7 +360,7 @@ If the TODO text has been updated, assign a new UUID."
                             (save-buffer)
                             ;; Restore read-only state
                             (when was-read-only
-                              (read-only-mode 1))))))))))))))
+                              (read-only-mode 1))))))))))))))))
 
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
 
@@ -388,10 +389,10 @@ If the TODO text has been updated, assign a new UUID."
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     (org-collect-code-todos-make-writable)
-    ;; Set a flag to indicate we're in the middle of a TODO state change
+    ;; Set a flag to indicate we're in the middle of a TODO[ccaacf04] state change
     (setq-local org-collect-code-todos-keep-writable t)))
 
-;; Add a function to clear the writable flag after TODO state change is complete
+;; Add a function to clear the writable flag after TODO[5f9e80e4] state change is complete
 (defun org-collect-code-todos-after-todo-state-change (&rest _args)
   "Clear the writable flag after todo state change is complete."
   (when (and (eq major-mode 'org-mode)
