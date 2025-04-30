@@ -282,32 +282,14 @@ If the TODO text has been updated, assign a new UUID."
 
 (add-hook 'org-after-todo-state-change-hook #'mark-source-todo-state)
 
-;; Add hook with the fixed function
-(add-hook 'org-before-todo-state-change-hook #'org-collect-code-todos-before-todo-state-change)
-
-;; Make the buffer read-only when opened
-(add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
-
 ;; Define wrapper functions that accept arguments
 (defun org-collect-code-todos-make-writable-with-args (&rest _args)
   "Make the code-todos buffer writable, ignoring any arguments."
   (org-collect-code-todos-make-writable))
 
-;; Make the buffer temporarily writable for specific operations
-(advice-add 'org-todo :before #'org-collect-code-todos-make-writable-with-args)
-(advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable-with-args)
-(advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable-with-args)
-(advice-add 'org-ctrl-c-ctrl-c :before #'org-collect-code-todos-make-writable-with-args)
-
-;; Make the buffer read-only again after operations
 (defun org-collect-code-todos-make-read-only-with-args (&rest _args)
   "Make the code-todos buffer read-only, ignoring any arguments."
   (org-collect-code-todos-make-read-only))
-
-(advice-add 'org-todo :after #'org-collect-code-todos-make-read-only-with-args)
-(advice-add 'org-archive-subtree :after #'org-collect-code-todos-make-read-only-with-args)
-(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-make-read-only-with-args)
-(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-make-read-only-with-args)
 
 ;; Fix for org-before-todo-state-change-hook
 (defun org-collect-code-todos-before-todo-state-change (&rest _args)
@@ -316,6 +298,24 @@ If the TODO text has been updated, assign a new UUID."
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     (org-collect-code-todos-make-writable)))
+
+;; Add hook with the fixed function
+(add-hook 'org-before-todo-state-change-hook #'org-collect-code-todos-before-todo-state-change)
+
+;; Make the buffer read-only when opened
+(add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
+
+;; Make the buffer temporarily writable for specific operations
+(advice-add 'org-todo :before #'org-collect-code-todos-make-writable-with-args)
+(advice-add 'org-archive-subtree :before #'org-collect-code-todos-make-writable-with-args)
+(advice-add 'org-archive-subtree-default :before #'org-collect-code-todos-make-writable-with-args)
+(advice-add 'org-ctrl-c-ctrl-c :before #'org-collect-code-todos-make-writable-with-args)
+
+;; Make the buffer read-only again after operations
+(advice-add 'org-todo :after #'org-collect-code-todos-make-read-only-with-args)
+(advice-add 'org-archive-subtree :after #'org-collect-code-todos-make-read-only-with-args)
+(advice-add 'org-archive-subtree-default :after #'org-collect-code-todos-make-read-only-with-args)
+(advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-make-read-only-with-args)
 
 (provide 'org-collect-code-todos)
 ;;; org-collect-code-TODO[d4ed979c] s.el ends here
