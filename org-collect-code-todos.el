@@ -199,7 +199,10 @@ This is used during operations like changing TODO states or archiving.")
                 (message "Entry processed: existing=%s, id=%s, text='%s'" 
                          existing-entry-found todo-id todo-text)))
             
-            (save-buffer)))))))
+            (save-buffer)
+            ;; Restore read-only state if needed
+            (when org-collect-code-todos-read-only
+              (read-only-mode 1))))))))
 
 
 (add-hook 'after-save-hook #'collect-todos-and-add-to-code-todos)
