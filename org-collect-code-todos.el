@@ -29,6 +29,13 @@
   :type 'file
   :group 'org-collect-code-todos)
 
+(defcustom org-collect-code-todos-archive-file nil
+  "File path where archived TODOs will be stored.
+If nil, defaults to code-todos.archive.org in the same directory."
+  :type '(choice (const :tag "Default" nil)
+                 (file :tag "Custom file"))
+  :group 'org-collect-code-todos)
+
 (defcustom org-collect-code-todos-read-only t
   "Whether the code-todos.org file should be read-only by default.
 When enabled, the file is read-only except when marking TODOs as done or archiving."
@@ -431,6 +438,19 @@ If the TODO text has been updated, assign a new UUID."
 ;; Make the buffer read-only when opened
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 
+;; Set up archive location when opening the todos file
+(defun org-collect-code-todos-set-archive-location ()
+  "Set up the archive location for the code-todos file."
+  (when (org-collect-code-todos--is-todos-buffer-p)
+    (let ((archive-file (or org-collect-code-todos-archive-file
+                            (concat (file-name-sans-extension 
+                                     (buffer-file-name))
+                                    ".archive.org"))))
+      (setq-local org-archive-location 
+                  (concat archive-file "::* Archived Tasks")))))
+
+(add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
+
 ;; Make the buffer temporarily writable for specific operations
 (advice-add 'org-todo :before #'org-collect-code-todos-make-writable-with-args)
 ;; Archive operations are now handled by our safe wrappers with try-finally
@@ -448,16 +468,30 @@ If the TODO text has been updated, assign a new UUID."
 
 ;; Create safe wrappers for org functions
 (defun org-collect-code-todos-safe-archive-subtree (orig-fun &rest args)
-  "Safely execute org-archive-subtree with proper read-only handling."
+  "Safely execute org-archive-subtree with proper read-only handling.
+Ensures the entry is properly archived and removed from the current buffer."
   (if (not (org-collect-code-todos--is-todos-buffer-p))
       ;; Not our buffer, just call the original function
       (apply orig-fun args)
     ;; Our buffer, handle read-only state
-    (let ((inhibit-read-only t))
+    (let ((inhibit-read-only t)
+          (org-archive-location (or org-archive-location
+                                    (concat (file-name-sans-extension 
+                                             (buffer-file-name))
+                                            ".archive.org::* Archived Tasks"))))
       (unwind-protect
           (progn
             (read-only-mode -1)
-            (apply orig-fun args))
+            ;; Make sure we're on a heading
+            (org-back-to-heading t)
+            ;; Apply the original archive function
+            (apply orig-fun args)
+            ;; Save both the current buffer and the archive buffer
+            (save-buffer)
+            (when-let ((archive-buffer (get-file-buffer 
+                                        (org-extract-archive-file org-archive-location))))
+              (with-current-buffer archive-buffer
+                (save-buffer))))
         (when org-collect-code-todos-read-only
           (read-only-mode 1))))))
 
