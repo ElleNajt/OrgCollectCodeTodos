@@ -348,7 +348,7 @@ If the TODO text has been updated, assign a new UUID."
     ;; Clear the writable flag
     (setq-local org-collect-code-todos-keep-writable nil)
     ;; Use a timer to delay setting read-only to ensure all processing is complete
-    (run-with-timer 0.5 nil
+    (run-with-timer 0.1 nil
                     (lambda (buf)
                       (when (buffer-live-p buf)
                         (with-current-buffer buf
