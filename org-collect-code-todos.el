@@ -221,7 +221,7 @@ LAST-TEXT is the previous text of the TODO item."
           (line-end (line-end-position))
           (found nil))
       
-      ;; First try to find a TODO with ID
+      ;; First try to find a DONE[7063e5e9] with ID
       (when todo-id
         (goto-char line-start)
         (when (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)" 
