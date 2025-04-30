@@ -1,4 +1,4 @@
-;;; org-collect-code-TODO[fe4a3329] s.el --- Description -*- lexical-binding: t; -*-
+;;; org-collect-code-todos.el --- Description -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2025
 ;;
@@ -178,7 +178,7 @@ This is used during operations like changing TODO states or archiving.")
                         (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
                           (setq current-last (match-string 1))))
                       
-                      ;; Get the current heading text (without TODO keyword and tags)
+                      ;; Get the current heading text (without TODO[50a05076] keyword and tags)
                       (let ((current-heading-text (org-get-heading t t t t)))
                         ;; If :LAST: matches the current heading text but differs from the code todo-text,
                         ;; update the heading and :LAST: property
@@ -267,7 +267,7 @@ If the TODO text has been updated, assign a new UUID."
                                     (with-current-buffer (find-buffer-visiting org-collect-code-todos-file)
                                       ;; Temporarily make the buffer writable if needed
                                       (let ((was-read-only (and org-collect-code-todos-read-only
-                                                               buffer-read-only)))
+                                                                buffer-read-only)))
                                         (when was-read-only
                                           (read-only-mode -1))
                                         (org-back-to-heading t)
@@ -300,7 +300,7 @@ If the TODO text has been updated, assign a new UUID."
 
 (defun org-collect-code-todos-make-read-only-with-args (&rest _args)
   "Make the code-todos buffer read-only, ignoring any arguments."
-  ;; Only make read-only if we're not in the middle of a TODO state change
+  ;; Only make read-only if we're not in the middle of a TODO[c907d2d9] state change
   (when (and (eq major-mode 'org-mode)
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
@@ -314,10 +314,10 @@ If the TODO text has been updated, assign a new UUID."
              (buffer-file-name)
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     (org-collect-code-todos-make-writable)
-    ;; Set a flag to indicate we're in the middle of a TODO state change
+    ;; Set a flag to indicate we're in the middle of a TODO[2a959ec5] state change
     (setq-local org-collect-code-todos-keep-writable t)))
 
-;; Add a function to clear the writable flag after todo state change is complete
+;; Add a function to clear the writable flag after TODO[10098132] state change is complete
 (defun org-collect-code-todos-after-todo-state-change (&rest _args)
   "Clear the writable flag after todo state change is complete."
   (when (and (eq major-mode 'org-mode)
@@ -325,7 +325,7 @@ If the TODO text has been updated, assign a new UUID."
              (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
     (setq-local org-collect-code-todos-keep-writable nil)))
 
-;; Add hooks for todo state change
+;; Add hooks for TODO[80d94275] state change
 (add-hook 'org-before-todo-state-change-hook #'org-collect-code-todos-before-todo-state-change)
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-after-todo-state-change)
 
@@ -366,4 +366,5 @@ If the TODO text has been updated, assign a new UUID."
 (advice-add 'org-ctrl-c-ctrl-c :after #'org-collect-code-todos-delayed-read-only)
 
 (provide 'org-collect-code-todos)
-;;; org-collect-code-TODO[d4ed979c] s.el ends here
+
+;;; org-collect-code-todos.el ends here
