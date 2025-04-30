@@ -41,30 +41,32 @@ This is used during operations like changing TODO states or archiving.")
 
 (require 'uuid)
 
+(defun org-collect-code-todos--is-todos-buffer-p ()
+  "Check if current buffer is the code-todos file."
+  (and (buffer-file-name)
+       (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))))
+
 (defun org-collect-code-todos-make-writable ()
   "Make the code-todos buffer writable temporarily."
   (when (and org-collect-code-todos-read-only
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+             (org-collect-code-todos--is-todos-buffer-p))
     (read-only-mode -1)))
 
 (defun org-collect-code-todos-make-read-only ()
   "Make the code-todos buffer read-only again."
   (when (and org-collect-code-todos-read-only
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+             (org-collect-code-todos--is-todos-buffer-p))
     (read-only-mode 1)))
 
 (defun org-collect-code-todos-set-read-only ()
   "Set the code-todos buffer to read-only when opened."
   (when (and org-collect-code-todos-read-only
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+             (org-collect-code-todos--is-todos-buffer-p))
     (read-only-mode 1)))
 
 
 
-(defun collect-todos-and-add-to-code-todos ()
+(defun org-collect-code-todos-collect-and-add ()
   (when (derived-mode-p 'prog-mode)
     (message "Starting TODO collection for %s" (buffer-file-name))
     (save-excursion
@@ -178,7 +180,7 @@ This is used during operations like changing TODO states or archiving.")
                         (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
                           (setq current-last (match-string 1))))
                       
-                      ;; Get the current heading text (without TODO[50a05076] keyword and tags)
+                      ;; Get the current heading text (without TODO keyword and tags)
                       (let ((current-heading-text (org-get-heading t t t t)))
                         ;; If :LAST: matches the current heading text but differs from the code todo-text,
                         ;; update the heading and :LAST: property
@@ -205,7 +207,7 @@ This is used during operations like changing TODO states or archiving.")
               (read-only-mode 1))))))))
 
 
-(add-hook 'after-save-hook #'collect-todos-and-add-to-code-todos)
+(add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
 
 (defun org-collect-code-todos-update-source-file (path line todo-id org-state org-todo-text last-text)
   "Update TODO state in source file.
@@ -224,7 +226,7 @@ LAST-TEXT is the previous text of the TODO item."
           (line-end (line-end-position))
           (found nil))
       
-      ;; First try to find a DONE[7063e5e9] with ID
+      ;; First try to find a TODO/DONE with ID
       (when todo-id
         (goto-char line-start)
         (when (re-search-forward (format "\\([ \t]*\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)" 
@@ -262,19 +264,18 @@ LAST-TEXT is the previous text of the TODO item."
       (when found
         (save-buffer)))))
 
-(defun mark-source-todo-state ()
+(defun org-collect-code-todos-mark-source-todo-state ()
   "Update TODO/DONE state in source file when changed in code-todos.org.
 If the TODO text has been updated, assign a new UUID."
   ;; Make sure the buffer is writable for this operation
   (when (and (eq major-mode 'org-mode)
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+             (org-collect-code-todos--is-todos-buffer-p))
     (org-collect-code-todos-make-writable)
     ;; Ensure we don't immediately revert to read-only
     (setq-local org-collect-code-todos-keep-writable t))
   
   (when (and (eq major-mode 'org-mode)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file))
+             (org-collect-code-todos--is-todos-buffer-p)
              (member org-state '("TODO" "DONE")))
     (save-excursion
       (org-back-to-heading t)
@@ -324,7 +325,7 @@ If the TODO text has been updated, assign a new UUID."
                           (when was-read-only
                             (read-only-mode 1)))))))))))))))
 
-(add-hook 'org-after-todo-state-change-hook #'mark-source-todo-state)
+(add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
 
 ;; Define wrapper functions that accept arguments
 (defun org-collect-code-todos-make-writable-with-args (&rest _args)
@@ -332,8 +333,7 @@ If the TODO text has been updated, assign a new UUID."
   (org-collect-code-todos-make-writable)
   ;; Set a flag to indicate we're in the middle of an operation
   (when (and (eq major-mode 'org-mode)
-             (buffer-file-name)
-             (string= (buffer-file-name) (expand-file-name org-collect-code-todos-file)))
+             (org-collect-code-todos--is-todos-buffer-p))
     (setq-local org-collect-code-todos-keep-writable t)))
 
 (defun org-collect-code-todos-make-read-only-with-args (&rest _args)
@@ -355,7 +355,7 @@ If the TODO text has been updated, assign a new UUID."
     ;; Set a flag to indicate we're in the middle of a TODO[2a959ec5] state change
     (setq-local org-collect-code-todos-keep-writable t)))
 
-;; Add a function to clear the writable flag after TODO[10098132] state change is complete
+;; Add a function to clear the writable flag after TODO state change is complete
 (defun org-collect-code-todos-after-todo-state-change (&rest _args)
   "Clear the writable flag after todo state change is complete."
   (when (and (eq major-mode 'org-mode)
@@ -389,10 +389,8 @@ If the TODO text has been updated, assign a new UUID."
                     (lambda (buf)
                       (when (buffer-live-p buf)
                         (with-current-buffer buf
-                          (if (local-variable-p 'org-collect-code-todos-keep-writable)
-                              (unless org-collect-code-todos-keep-writable
-                                (org-collect-code-todos-make-read-only))
-                            ;; If variable isn't available, just make read-only
+                          (unless (and (local-variable-p 'org-collect-code-todos-keep-writable)
+                                       org-collect-code-todos-keep-writable)
                             (org-collect-code-todos-make-read-only)))))
                     (current-buffer))))
 
