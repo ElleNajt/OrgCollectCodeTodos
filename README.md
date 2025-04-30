@@ -1,55 +1,60 @@
 # org-collect-code-todos
 
-An Emacs package that automatically collects TODO comments from your code files and organizes them in a central org-mode file.
+Written almost entirely by Claude 3.7 using aider.
+
+An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
+
+## Overview
+
+`org-collect-code-todos` scans your code files for TODO comments and maintains a centralized Org mode file where you can track and manage them. When you mark a TODO as DONE in the Org file, it updates the corresponding comment in the source code.
 
 ## Features
 
-- Automatically scans code files for TODO comments when saving
-- Collects TODOs from both regular comments and string literals
-- Organizes TODOs in a central `~/code-todos.org` file
-- Creates links back to the original source location
-- Synchronizes TODO/DONE state between org file and source code
+- **Automatic Collection**: Scans code files for TODO comments when you save them
+- **Bidirectional Sync**: Changes in the Org file update the source code and vice versa
+- **UUID Tracking**: Uses unique IDs to maintain the connection between TODOs in code and Org entries
+- **Read-Only Protection**: Prevents accidental edits to the Org file while allowing TODO state changes
+- **Supports Multiple Languages**: Works with any programming language that uses standard comment syntax
 
-## Installation
-
-### Manual Installation
-
-1. Download `org-collect-code-todos.el` to your load path
-2. Add to your Emacs configuration:
+## Configuration
 
 ```elisp
-(require 'org-collect-code-todos)
-```
+;; Set the path for your code TODOs file (default is ~/code-todos.org)
+(setq org-collect-code-todos-file "~/my-todos.org")
 
-### Using use-package
-
-```elisp
-(use-package org-collect-code-todos
-  :load-path "/path/to/org-collect-code-todos"
-  :hook (after-save . collect-todos-and-add-to-code-todos))
+;; Make the TODOs file editable (default is read-only)
+(setq org-collect-code-todos-read-only nil)
 ```
 
 ## Usage
 
-The package works automatically:
+1. Add TODOs to your code as comments:
+   ```python
+   # TODO This needs optimization
+   ```
 
-1. When you save a file in `prog-mode`, it scans for TODO comments
-2. TODOs are added to `~/code-todos.org` with links back to source
-3. When you mark a TODO as DONE in the org file, the state is updated in the source
+2. Save the file, and the TODO will be collected into your org-collect-code-todos file.
 
-## Customization
+3. In the Org file, you can:
+   - Mark TODOs as DONE (which updates the source code)
+   - Archive completed TODOs
+   - Add notes or subtasks
 
-You can customize the following variables:
+4. When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
+   ```python
+   # DONE This needs optimization
+   ```
+   
+5. The org file is kept read only, to prevent synchronization issues.
 
-```elisp
-;; Change the location of the TODOs org file
-(setq org-collect-code-todos-file "~/my-todos.org")
-```
+## How It Works
 
-By default, the package:
-- Looks for "TODO" markers in comments and string literals
-- Saves collected TODOs to `~/code-todos.org`
+The package uses hooks to:
+1. Scan files on save for TODOs inside of comments.
+2. Add unique IDs to TODOs in your code: `TODO[a1b2c3d4] Fix this later`
+3. Create corresponding entries in your Org file
+4. Update the source code when you change TODO states in the Org file
 
 ## License
 
-This project is licensed under the terms of the MIT license.
+This project is licensed under the MIT License - see the LICENSE file for details.
