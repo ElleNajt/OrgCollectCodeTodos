@@ -452,26 +452,38 @@ If the TODO text has been updated, assign a new UUID."
 (defun org-collect-code-todos-safe-archive-subtree (&rest args)
   "Safely execute org-archive-subtree with proper read-only handling."
   (interactive "P")
-  (when (org-collect-code-todos--is-todos-buffer-p)
-    (org-collect-code-todos-make-writable)
-    (setq-local org-collect-code-todos-keep-writable t))
-  (unwind-protect
-      (apply #'org-archive-subtree-default args)
-    (when (org-collect-code-todos--is-todos-buffer-p)
-      (setq-local org-collect-code-todos-keep-writable nil)
-      (org-collect-code-todos-make-read-only))))
+  (let ((was-todos-buffer (org-collect-code-todos--is-todos-buffer-p)))
+    (when was-todos-buffer
+      (org-collect-code-todos-make-writable)
+      (setq-local org-collect-code-todos-keep-writable t))
+    (unwind-protect
+        (condition-case err
+            (apply #'org-archive-subtree-default args)
+          (error
+           (message "Archive error: %s" (error-message-string err))
+           (signal (car err) (cdr err))))
+      ;; Always run this cleanup code, even if an error occurred
+      (when was-todos-buffer
+        (setq-local org-collect-code-todos-keep-writable nil)
+        (org-collect-code-todos-make-read-only)))))
 
 (defun org-collect-code-todos-safe-archive-subtree-default (&rest args)
   "Safely execute org-archive-subtree-default with proper read-only handling."
   (interactive "P")
-  (when (org-collect-code-todos--is-todos-buffer-p)
-    (org-collect-code-todos-make-writable)
-    (setq-local org-collect-code-todos-keep-writable t))
-  (unwind-protect
-      (apply #'org-archive-subtree-default args)
-    (when (org-collect-code-todos--is-todos-buffer-p)
-      (setq-local org-collect-code-todos-keep-writable nil)
-      (org-collect-code-todos-make-read-only))))
+  (let ((was-todos-buffer (org-collect-code-todos--is-todos-buffer-p)))
+    (when was-todos-buffer
+      (org-collect-code-todos-make-writable)
+      (setq-local org-collect-code-todos-keep-writable t))
+    (unwind-protect
+        (condition-case err
+            (apply #'org-archive-subtree-default args)
+          (error
+           (message "Archive error: %s" (error-message-string err))
+           (signal (car err) (cdr err))))
+      ;; Always run this cleanup code, even if an error occurred
+      (when was-todos-buffer
+        (setq-local org-collect-code-todos-keep-writable nil)
+        (org-collect-code-todos-make-read-only)))))
 
 ;; Make the buffer read-only again after operations
 (advice-add 'org-todo :after #'org-collect-code-todos-delayed-read-only)
