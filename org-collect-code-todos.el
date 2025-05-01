@@ -110,47 +110,7 @@ This is used during operations like changing TODO states or archiving.")
                 (replace-match (concat original-prefix todo-with-id))))
             (push entry todos)))
 
-        ;; Handle string literals
-        (goto-char (point-min))
-        (while (re-search-forward "\\(\"\"\"\\|'''\\)\\(\\(?:.\\|\n\\)*?\\)\\1" nil t)
-          (let ((string-text (match-string-no-properties 2))
-                (string-start-pos (match-beginning 0))
-                (string-lines 0))
-            ;; Count lines to adjust line numbers correctly
-            (save-excursion
-              (goto-char string-start-pos)
-              (setq string-lines (count-lines string-start-pos (match-beginning 2))))
-            
-            (with-temp-buffer
-              (insert string-text)
-              (goto-char (point-min))
-              (while (re-search-forward "\\(^\\|[ \t]\\)TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?[ \t]\\(.*\\)" nil t)
-                (let* ((existing-id (match-string-no-properties 2))
-                       (todo-text (string-trim (match-string-no-properties 3)))
-                       (original-line (+ string-lines (line-number-at-pos (match-beginning 0))))
-                       (file-name (replace-regexp-in-string "[.-]" "_"
-                                                            (file-name-nondirectory file-path)))
-                       (id (or existing-id (substring (uuid-string) 0 8)))
-                       (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
-                                      todo-text
-                                      file-name
-                                      id
-                                      todo-text
-                                      file-path
-                                      todo-text)))
-                  
-                  ;; If this is a new TODO[eefae85e] without an ID, we need to update the original buffer
-                  (unless existing-id
-                    (let ((pos-in-original (with-current-buffer (current-buffer)
-                                             (save-excursion
-                                               (goto-char string-start-pos)
-                                               (forward-line (1- (- (line-number-at-pos) 1)))
-                                               (move-to-column (current-column))
-                                               (point)))))
-                      ;; We can't directly modify the string literal here, but we've generated a UUID already
-                      ))
-                  
-                  (push entry todos))))))
+
 
         (message "Found %d TODOs in %s" (length todos) file-path)
         (when todos
