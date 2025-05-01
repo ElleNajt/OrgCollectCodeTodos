@@ -19,6 +19,9 @@
 ;;
 ;;; Code:
 
+(require 'uuid)
+(require 'cl-lib)
+
 (defgroup org-collect-code-todos nil
   "Collect TODO comments from code files into an org file."
   :group 'org
@@ -46,8 +49,6 @@ When enabled, the file is read-only except when marking TODOs as done or archivi
   "When non-nil, prevents the buffer from being made read-only.
 This is used during operations like changing TODO states or archiving.")
 
-(require 'uuid)
-(require 'cl-lib)
 
 (defun org-collect-code-todos--is-todos-buffer-p ()
   "Check if current buffer is the code-todos file."
@@ -160,65 +161,65 @@ This is used during operations like changing TODO states or archiving.")
             (let ((inhibit-read-only t))
               (when org-collect-code-todos-read-only
                 (read-only-mode -1))
-            (dolist (todo todos)
-              (let* ((todo-lines (split-string todo "\n"))
-                     (heading-line (car todo-lines))
-                     (id-line (nth 2 todo-lines))
-                     (last-line (nth 3 todo-lines))
-                     (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
-                                (match-string 1 id-line)))
-                     (todo-text (when (string-match "\\* TODO \\(.*\\) :" heading-line)
-                                  (match-string 1 heading-line)))
-                     (last-text (when (string-match ":LAST:\\s-*\\(.*\\)" last-line)
-                                  (match-string 1 last-line)))
-                     (existing-entry-found nil))
-                
-                ;; Check if we have an entry with the same ID
-                (save-excursion
-                  (goto-char (point-min))
-                  (when (and todo-id 
-                             (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t))
-                    (setq existing-entry-found t)
-                    ;; Go to the heading of this entry
-                    (condition-case nil
-                        (org-back-to-heading t)
-                      (error
-                       (message "Error: Could not find heading for TODO ID %s" todo-id)
-                       (setq existing-entry-found nil)))
-                    
-                    (when existing-entry-found
-                      ;; Check the :LAST: property
-                      (let ((current-last nil))
-                        (save-excursion
-                          (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
-                            (setq current-last (match-string 1))))
+              (dolist (todo todos)
+                (let* ((todo-lines (split-string todo "\n"))
+                       (heading-line (car todo-lines))
+                       (id-line (nth 2 todo-lines))
+                       (last-line (nth 3 todo-lines))
+                       (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
+                                  (match-string 1 id-line)))
+                       (todo-text (when (string-match "\\* TODO \\(.*\\) :" heading-line)
+                                    (match-string 1 heading-line)))
+                       (last-text (when (string-match ":LAST:\\s-*\\(.*\\)" last-line)
+                                    (match-string 1 last-line)))
+                       (existing-entry-found nil))
 
-                        ;; Get the current heading text (without TODO[1c76e5ad] keyword and tags)
-                        (let ((current-heading-text (org-get-heading t t t t)))
-                          ;; If :LAST: matches the current heading text but differs from the code todo-text,
-                          ;; update the heading and :LAST: property
-                          (message "EXISTING ENTRY - Current heading: '%s', LAST: '%s', New code todo: '%s'"
-                                   current-heading-text current-last todo-text)
-                          (when (and current-last
-                                     (string= current-last current-heading-text)
-                                     (not (string= current-heading-text todo-text)))
-                            (message "UPDATING heading: '%s' -> '%s'" current-heading-text todo-text)
-                            (org-edit-headline todo-text)
-                            (org-entry-put (point) "LAST" todo-text))))))
+                  ;; Check if we have an entry with the same ID
+                  (save-excursion
+                    (goto-char (point-min))
+                    (when (and todo-id
+                               (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t))
+                      (setq existing-entry-found t)
+                      ;; Go to the heading of this entry
+                      (condition-case nil
+                          (org-back-to-heading t)
+                        (error
+                         (message "Error: Could not find heading for TODO ID %s" todo-id)
+                         (setq existing-entry-found nil)))
 
-                  ;; If no existing entry was found or updated, add the new entry
-                  (unless existing-entry-found
-                    (message "Adding new entry for TODO: '%s' with ID: %s" todo-text todo-id)
-                    (let ((inhibit-read-only t))
-                      (goto-char (point-max))
-                      (insert "\n" todo)))
-                  (message "Entry processed: existing=%s, id=%s, text='%s'"
-                           existing-entry-found todo-id todo-text)))
+                      (when existing-entry-found
+                        ;; Check the :LAST: property
+                        (let ((current-last nil))
+                          (save-excursion
+                            (when (re-search-forward ":LAST:\\s-*\\(.*\\)" (save-excursion (outline-next-heading) (point)) t)
+                              (setq current-last (match-string 1))))
 
-              (save-buffer)
-              ;; Restore read-only state if needed
-              (when org-collect-code-todos-read-only
-                (read-only-mode 1)))))))))
+                          ;; Get the current heading text (without TODO[1c76e5ad] keyword and tags)
+                          (let ((current-heading-text (org-get-heading t t t t)))
+                            ;; If :LAST: matches the current heading text but differs from the code todo-text,
+                            ;; update the heading and :LAST: property
+                            (message "EXISTING ENTRY - Current heading: '%s', LAST: '%s', New code todo: '%s'"
+                                     current-heading-text current-last todo-text)
+                            (when (and current-last
+                                       (string= current-last current-heading-text)
+                                       (not (string= current-heading-text todo-text)))
+                              (message "UPDATING heading: '%s' -> '%s'" current-heading-text todo-text)
+                              (org-edit-headline todo-text)
+                              (org-entry-put (point) "LAST" todo-text))))))
+
+                    ;; If no existing entry was found or updated, add the new entry
+                    (unless existing-entry-found
+                      (message "Adding new entry for TODO: '%s' with ID: %s" todo-text todo-id)
+                      (let ((inhibit-read-only t))
+                        (goto-char (point-max))
+                        (insert "\n" todo)))
+                    (message "Entry processed: existing=%s, id=%s, text='%s'"
+                             existing-entry-found todo-id todo-text)))
+
+                (save-buffer)
+                ;; Restore read-only state if needed
+                (when org-collect-code-todos-read-only
+                  (read-only-mode 1))))))))))
 
 
 (add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
@@ -445,10 +446,10 @@ If the TODO text has been updated, assign a new UUID."
   "Set up the archive location for the code-todos file."
   (when (org-collect-code-todos--is-todos-buffer-p)
     (let ((archive-file (or org-collect-code-todos-archive-file
-                            (concat (file-name-sans-extension 
+                            (concat (file-name-sans-extension
                                      (buffer-file-name))
                                     ".archive.org"))))
-      (setq-local org-archive-location 
+      (setq-local org-archive-location
                   (concat archive-file "::* Archived Tasks")))))
 
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
@@ -478,7 +479,7 @@ Ensures the entry is properly archived and removed from the current buffer."
     ;; Our buffer, handle read-only state
     (let ((inhibit-read-only t)
           (org-archive-location (or org-archive-location
-                                    (concat (file-name-sans-extension 
+                                    (concat (file-name-sans-extension
                                              (buffer-file-name))
                                             ".archive.org::* Archived Tasks"))))
       (unwind-protect
