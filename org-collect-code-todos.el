@@ -110,8 +110,6 @@ This is used during operations like changing TODO states or archiving.")
                 (replace-match (concat original-prefix todo-with-id))))
             (push entry todos)))
 
-
-
         (message "Found %d TODOs in %s" (length todos) file-path)
         (when todos
           (with-current-buffer (find-file-noselect org-collect-code-todos-file)
@@ -140,7 +138,7 @@ This is used during operations like changing TODO states or archiving.")
                     (when (and todo-id
                                (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t))
                       (setq existing-entry-found t)
-                      ;; Go to the heading of this entry
+                      i               ;; Go to the heading of this entry
                       (condition-case nil
                           (org-back-to-heading t)
                         (error
