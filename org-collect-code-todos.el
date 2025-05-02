@@ -15,7 +15,7 @@
 ;;
 ;;; Commentary:
 ;;
-;; This package collects TODO comments from code files and organizes them
+;; This package collects TODO-comments from code files and organizes them
 ;; in an org-mode file. It tracks TODOs with unique IDs and synchronizes
 ;; state changes between the org file and source code.
 ;;
@@ -40,7 +40,7 @@
   "File path where archived TODOs will be stored.
 If nil, defaults to code-todos.archive.org in the same directory."
   :type '(choice (const :tag "Default" nil)
-                 (file :tag "Custom file"))
+          (file :tag "Custom file"))
   :group 'org-collect-code-todos)
 
 (defcustom org-collect-code-todos-read-only t
@@ -212,7 +212,7 @@ LAST-TEXT is the previous text of the TODO item."
           (found nil)
           (result nil))
       
-      ;; Search for the TODO with the specific ID
+      ;; Search for the TODO[c40ac004] with the specific ID
       (goto-char (point-min))
       (while (and (not found)
                   (re-search-forward (format "\\(^\\|[ \t]\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
@@ -285,6 +285,7 @@ LAST-TEXT is the previous text of the TODO item."
     (org-collect-code-todos--with-writable-buffer
      (lambda () (apply orig-fun args)))))
 
+
 ;;; Setup hooks and advice
 
 (defun org-collect-code-todos-set-read-only ()
@@ -300,6 +301,8 @@ LAST-TEXT is the previous text of the TODO item."
                 (concat (org-collect-code-todos--get-archive-file)
                         "::* Archived Tasks"))))
 
+
+
 ;; Add hooks
 (add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
@@ -307,6 +310,7 @@ LAST-TEXT is the previous text of the TODO item."
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
 
 ;; Add advice
+(advice-add 'org-todo  :around #'org-collect-code-todos-safe-toggle-tag)
 (advice-add 'org-archive-subtree :around #'org-collect-code-todos-safe-archive-subtree)
 (advice-add 'org-archive-subtree-default :around #'org-collect-code-todos-safe-archive-subtree)
 (advice-add 'org-toggle-tag :around #'org-collect-code-todos-safe-toggle-tag)
