@@ -35,6 +35,8 @@ An Emacs package that automatically collects TODO comments from your code files 
 
 2. Save the file, and the TODO will be collected into your org-collect-code-todos file.
 
+This will only detected TODO's that appear after some number of comment characters, followed by whitespace.
+
 3. In the Org file, you can:
    - Mark TODOs as DONE (which updates the source code)
    - Archive completed TODOs

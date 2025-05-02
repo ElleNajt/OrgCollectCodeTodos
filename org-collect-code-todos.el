@@ -127,7 +127,7 @@ Returns a plist with :id, :path, and :last-text properties."
       (save-excursion
         (goto-char (point-min))
         (while (re-search-forward 
-                (format "%s\\(.*?\\)\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)" 
+                (format "^[%s]+\\(\s*?\\)\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
                         (regexp-quote comment-start)) 
                 nil t)
           (let* ((existing-id (match-string-no-properties 3))
