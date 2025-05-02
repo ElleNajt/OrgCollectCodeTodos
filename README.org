@@ -1,14 +1,14 @@
-# org-collect-code-todos
+* org-collect-code-todos
 
 Written almost entirely by Claude 3.7 using aider.
 
 An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
 
-## Overview
+** Overview
 
 `org-collect-code-todos` scans your code files for TODO comments and maintains a centralized Org mode file where you can track and manage them. When you mark a TODO as DONE in the Org file, it updates the corresponding comment in the source code.
 
-## Features
+** Features
 
 - **Automatic Collection**: Scans code files for TODO comments when you save them
 - **Bidirectional Sync**: Changes in the Org file update the source code and vice versa
@@ -16,7 +16,7 @@ An Emacs package that automatically collects TODO comments from your code files 
 - **Read-Only Protection**: Prevents accidental edits to the Org file while allowing TODO state changes
 - **Supports Multiple Languages**: Works with any programming language that uses standard comment syntax
 
-## Configuration
+** Configuration
 
 ```elisp
 ;; Set the path for your code TODOs file (default is ~/code-todos.org)
@@ -26,7 +26,7 @@ An Emacs package that automatically collects TODO comments from your code files 
 (setq org-collect-code-todos-read-only nil)
 ```
 
-## Usage
+** Usage
 
 1. Add TODOs to your code as comments:
    ```python
@@ -49,7 +49,7 @@ This will only detected TODO's that appear after some number of comment characte
    
 5. The org file is kept read only, to prevent synchronization issues.
 
-## How It Works
+** How It Works
 
 The package uses hooks to:
 1. Scan files on save for TODOs inside of comments.
@@ -57,6 +57,10 @@ The package uses hooks to:
 3. Create corresponding entries in your Org file
 4. Update the source code when you change TODO states in the Org file
 
-## License
+** License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+* Improvements
+
+*** TODO The LAST mechanism is unnecessary, this was an earlier idea to try to keep things synced. It should be removed.
