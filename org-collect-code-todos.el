@@ -160,7 +160,7 @@ Returns a plist with :id, :path, and :last-text properties."
                (todo-text (string-trim (match-string-no-properties 4)))
                (file-name (replace-regexp-in-string "[.-]" "_"
                                                     (file-name-nondirectory file-path)))
-               (id (or existing-id (format "%08x" (random #xffffffff))))
+               (id (or existing-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
                (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
                (entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
                               org-state
@@ -364,7 +364,7 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
                 
                 ;; If no ID exists, generate one
                 (unless todo-id
-                  (setq todo-id (format "%08x" (random #xffffffff))))
+                  (setq todo-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
                 
                 ;; Replace the TODO/DONE state
                 (replace-match (concat new-state "[" todo-id "] " todo-text)
@@ -420,7 +420,7 @@ LAST-TEXT is the previous text of the TODO item."
               (current-text (match-string 3)))
           (if text-changed
               ;; Text changed - generate new UUID and update everything
-              (let ((new-uuid (format "%08x" (random #xffffffff))))
+              (let ((new-uuid (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
                 (replace-match (concat leading-space org-state "[" new-uuid "] " org-todo-text))
                 (setq result (cons new-uuid org-todo-text)))
             ;; Just update the state
