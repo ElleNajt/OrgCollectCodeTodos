@@ -8,35 +8,6 @@ Changes to the TODO in the source code file update in the org mode file by givin
 
 Written *almost* entirely by Claude 3.7 using aider.
 
-** Installation
-
-There are several ways to install this package:
-
-*** Manual Installation
-
-1. Download the ~org-collect-code-todos.el~ file
-2. Place it in your Emacs load path
-3. Add to your configuration:
-
-   #+begin_src emacs-lisp
-   (require 'org-collect-code-todos)
-   #+end_src
-
-*** Using use-package
-
-   #+begin_src emacs-lisp
-   (use-package org-collect-code-todos
-     :load-path "/path/to/org-collect-code-todos"
-     :hook (after-init . org-collect-code-todos-mode))
-   #+end_src
-
-*** Using straight.el
-
-   #+begin_src emacs-lisp
-   (straight-use-package
-    '(org-collect-code-todos :host github :repo "yourusername/org-collect-code-todos"))
-   #+end_src
-
 ** Overview
 
 `org-collect-code-todos` scans your code files for TODO comments and maintains a centralized Org mode file where you can track and manage them. When you mark a TODO as DONE in the Org file, it updates the corresponding comment in the source code.
@@ -45,7 +16,7 @@ There are several ways to install this package:
 
 - **Automatic Collection**: Scans code files for TODO comments when you save them
 - **UUID Tracking**: Uses unique IDs to maintain the connection between TODOs in code and Org entries
-- **Read-Only Protection**: Prevents edits to the Org file while allowing TODO state changes and archiving. This is to ensure there is a single source of truth.
+- **Read-Only Protection**: Prevents edits to the Org file while allowing TODO state changes, scheduling and archiving. This is to ensure there is a single source of truth and save headaches.
 - **Automatic Archiving**: Archives TODOs in the Org file when they're deleted from the source code
 - **Supports Multiple Languages**: Works with any programming language that uses standard comment syntax
 
@@ -72,7 +43,7 @@ There are several ways to install this package:
    # TODO This needs optimization
    #+end_src
 
-2. Save the file, and the TODO will be collected into your org-collect-code-todos file.
+2. Save the file, and the TODO will be given an ID and collected into your org-collect-code-todos file.
 
 This will only detect TODOs that appear after some number of comment characters, followed by whitespace.
 
@@ -80,7 +51,6 @@ This will only detect TODOs that appear after some number of comment characters,
    - Mark TODOs as DONE (which updates the source code)
    - Schedule TODOs or set deadlines
    - Archive completed TODOs
-   - Add tags to TODOs
 
 4. When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
    
@@ -111,20 +81,6 @@ This will only detect TODOs that appear after some number of comment characters,
 
 7. The org file is kept read only, to prevent synchronization issues.
 
-** How It Works
-
-The package uses hooks to:
-1. Scan files on save for TODOs inside of comments.
-2. Add unique IDs to TODOs in your code: 
-   
-   #+begin_src python
-   # TODO[a1b2c3d4] Fix this later
-   #+end_src
-3. Create corresponding entries in your Org file
-4. Archive entries in the Org file when the corresponding TODO is deleted from the source code
-5. Update the source code when you change TODO states in the Org file
-6. Allow scheduling and setting deadlines on TODOs in the org file
-
 ** License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -132,5 +88,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 * Improvements
 
-*** TODO Find some way to use overlays and indirect buffers to make the org todo simultaneously editable with the code.
-*** DONE Add scheduling
+*** TODO Add tags
+*** TODO Handle hierarchies
+*** TODO Treat a paragraph of comments starting as a TODO as a header plus info.
