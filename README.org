@@ -11,9 +11,8 @@ An Emacs package that automatically collects TODO comments from your code files 
 ** Features
 
 - **Automatic Collection**: Scans code files for TODO comments when you save them
-- **Bidirectional Sync**: Changes in the Org file update the source code and vice versa
 - **UUID Tracking**: Uses unique IDs to maintain the connection between TODOs in code and Org entries
-- **Read-Only Protection**: Prevents accidental edits to the Org file while allowing TODO state changes
+- **Read-Only Protection**: Prevents edits to the Org file while allowing TODO state changes and archiving. This is to ensure there is a single source of truth.
 - **Supports Multiple Languages**: Works with any programming language that uses standard comment syntax
 
 ** Configuration
@@ -63,4 +62,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 * Improvements
 
-*** TODO The LAST mechanism is unnecessary, this was an earlier idea to try to keep things synced. It should be removed.
+*** TODO Find some way to use overlays and indirect buffers to make the org todo simultaneously editable with the code.
