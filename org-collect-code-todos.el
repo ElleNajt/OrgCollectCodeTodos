@@ -310,6 +310,43 @@ Returns a plist with :id, :path, and :last-text properties."
         (message "Archived %d TODOs that no longer exist in %s" 
                  archived-count (file-name-nondirectory file-path))))))
 
+(defun org-collect-code-todos--find-todo-by-id (todo-id)
+  "Find a TODO entry in the org file by its ID.
+Returns a cons cell (buffer . position) if found, nil otherwise."
+  (when (file-exists-p org-collect-code-todos-file)
+    (with-current-buffer (find-file-noselect org-collect-code-todos-file)
+      (save-excursion
+        (goto-char (point-min))
+        (when (re-search-forward (format ":TODO_ID:\\s-*%s" 
+                                         (regexp-quote todo-id)) nil t)
+          (condition-case nil
+              (progn
+                (org-back-to-heading t)
+                (cons (current-buffer) (point)))
+            (error nil)))))))
+
+(defun org-collect-code-todos-jump-to-org-entry ()
+  "Jump to the corresponding org entry for the TODO at point."
+  (interactive)
+  (when (derived-mode-p 'prog-mode)
+    (save-excursion
+      (beginning-of-line)
+      (let ((comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
+        (when (looking-at comment-start-regex)
+          (let ((todo-regex "\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
+            (when (re-search-forward todo-regex (line-end-position) t)
+              (let ((todo-id (match-string 3)))
+                (if todo-id
+                    (let ((entry (org-collect-code-todos--find-todo-by-id todo-id)))
+                      (if entry
+                          (progn
+                            (pop-to-buffer (car entry))
+                            (goto-char (cdr entry))
+                            (org-show-context)
+                            (org-show-entry))
+                        (message "TODO entry not found in org file")))
+                  (message "This TODO doesn't have an ID yet. Save the file first."))))))))))
+
 (defun org-collect-code-todos-toggle-state-at-point ()
   "Toggle the TODO/DONE state of the TODO comment at point."
   (interactive)
@@ -463,6 +500,21 @@ LAST-TEXT is the previous text of the TODO item."
 
 ;;; Setup hooks and advice
 
+(defcustom org-collect-code-todos-toggle-key (kbd "C-c C-t")
+  "Key binding for toggling TODO state in source code."
+  :type 'key-sequence
+  :group 'org-collect-code-todos)
+
+(defcustom org-collect-code-todos-jump-key (kbd "C-c C-j")
+  "Key binding for jumping to TODO in org file."
+  :type 'key-sequence
+  :group 'org-collect-code-todos)
+
+(defun org-collect-code-todos-setup-key-bindings ()
+  "Set up key bindings for org-collect-code-todos in prog-mode."
+  (local-set-key org-collect-code-todos-toggle-key #'org-collect-code-todos-toggle-state-at-point)
+  (local-set-key org-collect-code-todos-jump-key #'org-collect-code-todos-jump-to-org-entry))
+
 (defun org-collect-code-todos-set-read-only ()
   "Set the code-todos buffer to read-only when opened."
   (when (and org-collect-code-todos-read-only
@@ -475,7 +527,6 @@ LAST-TEXT is the previous text of the TODO item."
     (setq-local org-archive-location
                 (concat (org-collect-code-todos--get-archive-file)
                         "::* Archived Tasks"))))
-
 
 
 ;; Add hooks

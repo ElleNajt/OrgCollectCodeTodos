@@ -90,7 +90,7 @@ This will only detect TODOs that appear after some number of comment characters,
 
 5. You can also toggle TODO/DONE state directly in your source code:
    - Place your cursor on a TODO line
-   - Press Enter (or your configured key)
+   - Press C-c C-t (or your configured key)
    - The state will toggle between TODO and DONE
    - The change will be synchronized with the org file
 
@@ -99,7 +99,17 @@ This will only detect TODOs that appear after some number of comment characters,
    (setq org-collect-code-todos-toggle-key (kbd "C-c t"))
    #+end_src
    
-6. The org file is kept read only, to prevent synchronization issues.
+6. You can jump from a TODO in your source code to its entry in the org file:
+   - Place your cursor on a TODO line
+   - Press C-c C-j (or your configured key)
+   - Emacs will open the org file and jump to the corresponding entry
+
+   #+begin_src emacs-lisp
+   ;; Example of binding a different key for jumping
+   (setq org-collect-code-todos-jump-key (kbd "C-c j"))
+   #+end_src
+
+7. The org file is kept read only, to prevent synchronization issues.
 
 ** How It Works
 
