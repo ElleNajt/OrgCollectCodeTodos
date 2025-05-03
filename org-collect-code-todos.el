@@ -98,35 +98,53 @@ This is used during operations like changing TODO states or archiving.")
   "Extract TODO properties from current heading.
 Returns a plist with :id, :path, and :last-text properties."
   (save-excursion
-    (org-back-to-heading t)
-    (let* ((next-heading-pos (save-excursion
-                               (condition-case nil
-                                   (outline-next-heading)
-                                 (error (goto-char (point-max))))
-                               (point)))
-           (heading-content (buffer-substring-no-properties (point) next-heading-pos))
-           (todo-id nil)
-           (path nil)
-           (last-text nil))
-      
-      ;; Extract file path from link
-      (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
-        (setq path (match-string 1 heading-content)))
-      
-      ;; Extract TODO_ID property
-      (when (string-match ":TODO_ID:\\s-*\\([0-9a-f]+\\)" heading-content)
-        (setq todo-id (match-string 1 heading-content)))
-      
-      ;; Extract LAST property
-      (when (string-match ":LAST:\\s-*\\(.*\\)" heading-content)
-        (setq last-text (match-string 1 heading-content)))
-      
-      (list :id todo-id :path path :last-text last-text))))
+    (condition-case err
+        (progn
+          (org-back-to-heading t)
+          (let* ((next-heading-pos (save-excursion
+                                     (condition-case nil
+                                         (outline-next-heading)
+                                       (error (goto-char (point-max))))
+                                     (point)))
+                 (heading-content (buffer-substring-no-properties (point) next-heading-pos))
+                 (todo-id nil)
+                 (path nil)
+                 (last-text nil))
+            
+            ;; Extract file path from link
+            (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
+              (setq path (match-string 1 heading-content)))
+            
+            ;; Extract TODO_ID property
+            (when (string-match ":TODO_ID:\\s-*\\([0-9a-f]+\\)" heading-content)
+              (setq todo-id (match-string 1 heading-content)))
+            
+            ;; Extract LAST property
+            (when (string-match ":LAST:\\s-*\\(.*\\)" heading-content)
+              (setq last-text (match-string 1 heading-content)))
+            
+            (list :id todo-id :path path :last-text last-text)))
+      (error
+       (org-collect-code-todos--debug-log 
+        "Error extracting TODO properties: %s at point %d" 
+        (error-message-string err) (point))
+       (list :id nil :path nil :last-text nil)))))
 
 ;;; Core functionality
 
 (defun org-collect-code-todos-collect-and-add ()
   "Collect TODOs from current buffer, add them to the org file, and remove deleted ones."
+  (when (derived-mode-p 'prog-mode)
+    (condition-case err
+        (org-collect-code-todos--do-collect-and-add)
+      (error
+       (org-collect-code-todos--debug-log 
+        "Error in org-collect-code-todos-collect-and-add: %s" 
+        (error-message-string err))
+       (message "Error collecting TODOs: %s" (error-message-string err)))))
+
+(defun org-collect-code-todos--do-collect-and-add ()
+  "Internal function that does the actual TODO collection work."
   (when (derived-mode-p 'prog-mode)
     (let ((file-path (buffer-file-name))
           (comment-start (string-trim comment-start))
@@ -223,34 +241,62 @@ Returns a plist with :id, :path, and :last-text properties."
                      (goto-char (point-max))
                      (insert "\n" todo)))))
              
-             (save-buffer))))))))
+             (save-buffer)))))))
 
 (defun org-collect-code-todos--remove-deleted-todos (file-path active-todo-ids)
   "Remove TODOs from the org file that reference FILE-PATH but aren't in ACTIVE-TODO-IDS."
+  (org-collect-code-todos--debug-log 
+   "Starting removal check for %s with active IDs: %s" 
+   file-path (mapconcat #'identity active-todo-ids ", "))
+  
   (save-excursion
     (goto-char (point-min))
     (let ((file-path-regexp (regexp-quote file-path))
-          (removed-count 0))
-      (while (re-search-forward file-path-regexp nil t)
-        (condition-case nil
-            (progn
-              (org-back-to-heading t)
-              (let* ((props (org-collect-code-todos--extract-todo-properties))
-                     (todo-id (plist-get props :id))
-                     (path (plist-get props :path)))
-                
-                ;; If this entry references our file but its ID isn't in active-todo-ids, delete it
-                (when (and path 
-                           (string= path file-path)
-                           todo-id
-                           (not (member todo-id active-todo-ids)))
-                  (org-collect-code-todos--debug-log 
-                   "Removing TODO with ID %s (not found in source)" todo-id)
-                  (let ((start (point)))
+          (removed-count 0)
+          (search-pos (point-min)))
+      
+      ;; Use a safer search approach with position tracking
+      (while (and search-pos 
+                  (< search-pos (point-max))
+                  (setq search-pos (save-excursion
+                                     (goto-char search-pos)
+                                     (when (re-search-forward file-path-regexp nil t)
+                                       (point)))))
+        (save-excursion
+          (goto-char search-pos)
+          (condition-case err
+              (progn
+                (org-back-to-heading t)
+                (let* ((heading-pos (point))
+                       (props (org-collect-code-todos--extract-todo-properties))
+                       (todo-id (plist-get props :id))
+                       (path (plist-get props :path)))
+                  
+                  ;; If this entry references our file but its ID isn't in active-todo-ids, delete it
+                  (when (and path 
+                             (string= path file-path)
+                             todo-id
+                             (not (member todo-id active-todo-ids)))
+                    (org-collect-code-todos--debug-log 
+                     "Removing TODO with ID %s (not found in source)" todo-id)
+                    (let ((start heading-pos)
+                          (end (save-excursion
+                                 (org-end-of-subtree t t)
+                                 (point))))
+                      (delete-region start end)
+                      (setq removed-count (1+ removed-count))
+                      ;; Update search position to before the deletion
+                      (setq search-pos heading-pos)))
+                  
+                  ;; If we didn't delete, move search position past this heading
+                  (unless (and todo-id (not (member todo-id active-todo-ids)))
                     (org-end-of-subtree t t)
-                    (delete-region start (point))
-                    (setq removed-count (1+ removed-count))))))
-          (error nil)))
+                    (setq search-pos (point)))))
+            (error 
+             (org-collect-code-todos--debug-log 
+              "Error during TODO removal: %s" (error-message-string err))
+             ;; On error, move forward to avoid getting stuck
+             (setq search-pos (+ search-pos 1))))))
       
       (when (> removed-count 0)
         (message "Removed %d TODOs that no longer exist in %s" 
