@@ -197,8 +197,8 @@ Returns a plist with :id, :path, and :last-text properties."
               "Processing file: %s with %d TODOs, IDs: %s" 
               file-path (length todos) (mapconcat #'identity source-todo-ids ", "))
              
-             ;; Then, find and remove TODOs that reference this file but aren't in the source anymore
-             (org-collect-code-todos--remove-deleted-todos file-path source-todo-ids)
+             ;; Then, find and archive TODOs that reference this file but aren't in the source anymore
+             (org-collect-code-todos--archive-deleted-todos file-path source-todo-ids)
              
              ;; Now add/update TODOs from the source file
              (dolist (todo todos)
@@ -242,17 +242,19 @@ Returns a plist with :id, :path, and :last-text properties."
              
              (save-buffer)))))))
 
-(defun org-collect-code-todos--remove-deleted-todos (file-path active-todo-ids)
-  "Remove TODOs from the org file that reference FILE-PATH but aren't in ACTIVE-TODO-IDS."
+(defun org-collect-code-todos--archive-deleted-todos (file-path active-todo-ids)
+  "Archive TODOs from the org file that reference FILE-PATH but aren't in ACTIVE-TODO-IDS."
   (org-collect-code-todos--debug-log 
-   "Starting removal check for %s with active IDs: %s" 
+   "Starting archive check for %s with active IDs: %s" 
    file-path (mapconcat #'identity active-todo-ids ", "))
   
   (save-excursion
     (goto-char (point-min))
     (let ((file-path-regexp (regexp-quote file-path))
-          (removed-count 0)
-          (search-pos (point-min)))
+          (archived-count 0)
+          (search-pos (point-min))
+          (org-archive-location (concat (org-collect-code-todos--get-archive-file)
+                                        "::* Deleted TODOs")))
       
       ;; Use a safer search approach with position tracking
       (while (and search-pos 
@@ -271,35 +273,37 @@ Returns a plist with :id, :path, and :last-text properties."
                        (todo-id (plist-get props :id))
                        (path (plist-get props :path)))
                   
-                  ;; If this entry references our file but its ID isn't in active-todo-ids, delete it
+                  ;; If this entry references our file but its ID isn't in active-todo-ids, archive it
                   (when (and path 
                              (string= path file-path)
                              todo-id
                              (not (member todo-id active-todo-ids)))
                     (org-collect-code-todos--debug-log 
-                     "Removing TODO with ID %s (not found in source)" todo-id)
-                    (let ((start heading-pos)
-                          (end (save-excursion
-                                 (org-end-of-subtree t t)
-                                 (point))))
-                      (delete-region start end)
-                      (setq removed-count (1+ removed-count))
-                      ;; Update search position to before the deletion
-                      (setq search-pos heading-pos)))
+                     "Archiving TODO with ID %s (not found in source)" todo-id)
+                    
+                    ;; Add a note about why it was archived
+                    (org-entry-put (point) "ARCHIVED_REASON" "Deleted from source code")
+                    
+                    ;; Archive the subtree
+                    (org-archive-subtree)
+                    (setq archived-count (1+ archived-count))
+                    
+                    ;; Update search position to before where the entry was
+                    (setq search-pos heading-pos))
                   
-                  ;; If we didn't delete, move search position past this heading
+                  ;; If we didn't archive, move search position past this heading
                   (unless (and todo-id (not (member todo-id active-todo-ids)))
                     (org-end-of-subtree t t)
                     (setq search-pos (point)))))
             (error 
              (org-collect-code-todos--debug-log 
-              "Error during TODO removal: %s" (error-message-string err))
+              "Error during TODO archiving: %s" (error-message-string err))
              ;; On error, move forward to avoid getting stuck
              (setq search-pos (+ search-pos 1))))))
       
-      (when (> removed-count 0)
-        (message "Removed %d TODOs that no longer exist in %s" 
-                 removed-count (file-name-nondirectory file-path))))))
+      (when (> archived-count 0)
+        (message "Archived %d TODOs that no longer exist in %s" 
+                 archived-count (file-name-nondirectory file-path))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.

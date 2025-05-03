@@ -13,7 +13,7 @@ An Emacs package that automatically collects TODO comments from your code files 
 - **Automatic Collection**: Scans code files for TODO comments when you save them
 - **UUID Tracking**: Uses unique IDs to maintain the connection between TODOs in code and Org entries
 - **Read-Only Protection**: Prevents edits to the Org file while allowing TODO state changes and archiving. This is to ensure there is a single source of truth.
-- **Automatic Cleanup**: Removes TODOs from the Org file when they're deleted from the source code
+- **Automatic Archiving**: Archives TODOs in the Org file when they're deleted from the source code
 - **Supports Multiple Languages**: Works with any programming language that uses standard comment syntax
 
 ** Configuration
@@ -55,7 +55,7 @@ The package uses hooks to:
 1. Scan files on save for TODOs inside of comments.
 2. Add unique IDs to TODOs in your code: `TODO[a1b2c3d4] Fix this later`
 3. Create corresponding entries in your Org file
-4. Remove entries from the Org file when the corresponding TODO is deleted from the source code
+4. Archive entries in the Org file when the corresponding TODO is deleted from the source code
 5. Update the source code when you change TODO states in the Org file
 
 ** License
