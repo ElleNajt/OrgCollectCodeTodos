@@ -141,7 +141,7 @@ Returns a plist with :id, :path, and :last-text properties."
        (org-collect-code-todos--debug-log 
         "Error in org-collect-code-todos-collect-and-add: %s" 
         (error-message-string err))
-       (message "Error collecting TODOs: %s" (error-message-string err)))))
+       (message "Error collecting TODOs: %s" (error-message-string err))))))
 
 (defun org-collect-code-todos--do-collect-and-add ()
   "Internal function that does the actual TODO collection work."
