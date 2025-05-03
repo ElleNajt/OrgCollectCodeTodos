@@ -14,11 +14,11 @@ Written *almost* entirely by Claude 3.7 using aider.
 
 ** Features
 
-- **Automatic Collection**: Scans code files for TODO comments when you save them
-- **UUID Tracking**: Uses unique IDs to maintain the connection between TODOs in code and Org entries
-- **Read-Only Protection**: Prevents edits to the Org file while allowing TODO state changes, scheduling and archiving. This is to ensure there is a single source of truth and save headaches.
-- **Automatic Archiving**: Archives TODOs in the Org file when they're deleted from the source code
-- **Supports Multiple Languages**: Works with any programming language that uses standard comment syntax
+- Automatic Collection: Scans code files for TODO comments when you save them
+- UUID Tracking: Uses unique IDs to maintain the connection between TODOs in code and Org entries
+- Read-Only Protection: Prevents edits to the Org file while allowing TODO state changes, scheduling and archiving. This is to ensure there is a single source of truth and save headaches.
+- Automatic Archiving: Archives TODOs in the Org file when they're deleted from the source code
+- Supports Multiple Languages: Works with any programming language that uses standard comment syntax
 
 ** Configuration
 
@@ -45,49 +45,60 @@ Written *almost* entirely by Claude 3.7 using aider.
 
 2. Save the file, and the TODO will be given an ID and collected into your org-collect-code-todos file.
 
+In the source code file you will see:
+
+   #+begin_src python
+# TODO[1cbe31f98195af20] This needs optimization
+   #+end_src
+
+
+In the org file you will see:
+
+#+begin_src org
+* TODO This needs optimization :test_py:
+:PROPERTIES:
+:TODO_ID: 1cbe31f98195af20
+:LAST: This needs optimization
+:END:
+[[/home/elle/code/OrgCollectCodeTodos/test.py][This needs optimization]]
+#+end_src
+
 This will only detect TODOs that appear after some number of comment characters, followed by whitespace.
 
-3. In the Org file, you can:
+1. In the Org file, you can:
    - Mark TODOs as DONE (which updates the source code)
    - Schedule TODOs or set deadlines
    - Archive completed TODOs
 
-4. When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
+2. When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
    
    #+begin_src python
-   # DONE This needs optimization
+   # DONE[d7dab7fc6b277026] This needs optimization
    #+end_src
 
-5. You can also toggle TODO/DONE state directly in your source code:
+3. You can also toggle TODO/DONE state directly in your source code:
    - Place your cursor on a TODO line
-   - Press C-c C-t (or your configured key)
+   - Invoke org-collect-code-todos-toggle-state-at-point
    - The state will toggle between TODO and DONE
    - The change will be synchronized with the org file
 
-   #+begin_src emacs-lisp
-   ;; Example of binding a different key for toggling
-   (setq org-collect-code-todos-toggle-key (kbd "C-c t"))
-   #+end_src
-   
-6. You can jump from a TODO in your source code to its entry in the org file:
+4. You can jump from a TODO in your source code to its entry in the org file:
    - Place your cursor on a TODO line
-   - Press C-c C-j (or your configured key)
+   - Invoke org-collect-code-todos-jump-to-org-entry
    - Emacs will open the org file and jump to the corresponding entry
 
-   #+begin_src emacs-lisp
-   ;; Example of binding a different key for jumping
-   (setq org-collect-code-todos-jump-key (kbd "C-c j"))
-   #+end_src
+5. The org file is kept read only, to keep sychronization simple. Just edit the todo in the source code file and the changes will be reflected in the org file. The code uses the ID to do this.
 
-7. The org file is kept read only, to prevent synchronization issues.
+6. Make sure to put the code-todos.org file somewhere were you org agenda will scan for it!
 
 ** License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 
-* Improvements
+* Planned Improvements:
 
 *** TODO Add tags
 *** TODO Handle hierarchies
 *** TODO Treat a paragraph of comments starting as a TODO as a header plus info.
+*** TODO Add scheduling directly in the source code
