@@ -499,20 +499,6 @@ LAST-TEXT is the previous text of the TODO item."
 
 ;;; Setup hooks and advice
 
-(defcustom org-collect-code-todos-toggle-key (kbd "C-c C-t")
-  "Key binding for toggling TODO state in source code."
-  :type 'key-sequence
-  :group 'org-collect-code-todos)
-
-(defcustom org-collect-code-todos-jump-key (kbd "C-c C-j")
-  "Key binding for jumping to TODO in org file."
-  :type 'key-sequence
-  :group 'org-collect-code-todos)
-
-(defun org-collect-code-todos-setup-key-bindings ()
-  "Set up key bindings for org-collect-code-todos in prog-mode."
-  (local-set-key org-collect-code-todos-toggle-key #'org-collect-code-todos-toggle-state-at-point)
-  (local-set-key org-collect-code-todos-jump-key #'org-collect-code-todos-jump-to-org-entry))
 
 (defun org-collect-code-todos-set-read-only ()
   "Set the code-todos buffer to read-only when opened."
@@ -533,7 +519,6 @@ LAST-TEXT is the previous text of the TODO item."
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
-(add-hook 'prog-mode-hook #'org-collect-code-todos-setup-key-bindings)
 
 ;; Add advice
 (advice-add 'org-todo  :around #'org-collect-code-todos-safe-toggle-tag)

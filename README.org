@@ -27,11 +27,13 @@ Written *almost* entirely by Claude 3.7 using aider.
 ;; Set the path for your code TODOs file (default is ~/org/code-todos.org)
 (setq org-collect-code-todos-file "~/my-todos.org")
 
-;; Change the key for toggling TODO state in source code
-(setq org-collect-code-todos-toggle-key (kbd "C-c t"))
-
 ;; Change the archive file location
 (setq org-collect-code-todos-archive-file "~/my-archive.org")
+
+;; Set the key for toggling TODO state in source code and jumping to the org entry
+(map! :map prog-mode-map
+      :n "C-c C-t" #'org-collect-code-todos-toggle-state-at-point
+      :n "C-c C-j" #'org-collect-code-todos-jump-to-org-entry)
 #+end_src
 
 
