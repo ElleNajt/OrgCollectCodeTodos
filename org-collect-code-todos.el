@@ -31,11 +31,6 @@
   :group 'org
   :prefix "org-collect-code-todos-")
 
-(defcustom org-collect-code-todos-toggle-key (kbd "RET")
-  "Key to toggle TODO/DONE state in source code."
-  :type 'key-sequence
-  :group 'org-collect-code-todos)
-
 (defcustom org-collect-code-todos-file (expand-file-name "~/code-todos.org")
   "File path where code TODOs will be collected."
   :type 'file
@@ -153,104 +148,104 @@ Returns a plist with :id, :path, and :last-text properties."
   (let ((file-path (buffer-file-name))
         (comment-start (string-trim comment-start))
         todos)
-      
-      ;; Find TODOs and DONEs in the current buffer
-      (save-excursion
-        (goto-char (point-min))
-        (while (re-search-forward 
-                (format "^[%s]+\\(\s*?\\)\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
-                        (regexp-quote comment-start)) 
-                nil t)
-          (let* ((existing-id (match-string-no-properties 3))
-                 (todo-state (match-string-no-properties 2))
-                 (todo-text (string-trim (match-string-no-properties 4)))
-                 (file-name (replace-regexp-in-string "[.-]" "_"
-                                                      (file-name-nondirectory file-path)))
-                 (id (or existing-id (substring (uuid-string) 0 8)))
-                 (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
-                 (entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
-                                org-state
-                                todo-text
-                                file-name
-                                id
-                                todo-text
-                                file-path
-                                todo-text)))
-            
-            ;; If no ID exists, add one to the source file
-            (unless existing-id
-              (let ((original-prefix (buffer-substring-no-properties 
-                                      (line-beginning-position)
-                                      (match-beginning 2)))
-                    (todo-with-id (format "%s[%s] %s" 
-                                          (if (string-match-p "^DONE" todo-state) "DONE" "TODO")
-                                          id todo-text)))
-                (replace-match (concat original-prefix todo-with-id))))
-            
-            (push entry todos))))
-      
-      ;; Process collected TODOs
-      (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-        (org-mode)
-        (org-collect-code-todos--with-writable-buffer
-         (lambda ()
-           ;; First, collect all TODO IDs from the current source file
-           (let ((source-todo-ids (mapcar 
-                                   (lambda (todo)
-                                     (let* ((todo-lines (split-string todo "\n"))
-                                            (id-line (nth 2 todo-lines)))
-                                       (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
-                                         (match-string 1 id-line))))
-                                   todos)))
-             
-             (org-collect-code-todos--debug-log 
-              "Processing file: %s with %d TODOs, IDs: %s" 
-              file-path (length todos) (mapconcat #'identity source-todo-ids ", "))
-             
-             ;; Then, find and archive TODOs that reference this file but aren't in the source anymore
-             (org-collect-code-todos--archive-deleted-todos file-path source-todo-ids)
-             
-             ;; Now add/update TODOs from the source file
-             (dolist (todo todos)
-               (let* ((todo-lines (split-string todo "\n"))
-                      (heading-line (car todo-lines))
-                      (id-line (nth 2 todo-lines))
-                      (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
-                                 (match-string 1 id-line)))
-                      (todo-text (when (string-match "\\* \\(?:TODO\\|DONE\\) \\(.*\\) :" heading-line)
-                                   (match-string 1 heading-line)))
-                      (existing-entry-found nil))
-                 
-                 ;; Check if we have an entry with the same ID
-                 (save-excursion
-                   (goto-char (point-min))
-                   (when (and todo-id
-                              (re-search-forward (format ":TODO_ID:\\s-*%s" 
-                                                         (regexp-quote todo-id)) nil t))
-                     (setq existing-entry-found t)
-                     (condition-case nil
-                         (org-back-to-heading t)
-                       (error
-                        (setq existing-entry-found nil)))
-                     
-                     (when existing-entry-found
-                       ;; Update existing entry if needed
-                       (let* ((props (org-collect-code-todos--extract-todo-properties))
-                              (current-last (plist-get props :last-text))
-                              (current-heading-text (org-get-heading t t t t)))
-                         
-                         (when (and current-last
-                                    (string= current-last current-heading-text)
-                                    (not (string= current-heading-text todo-text)))
-                           (org-edit-headline todo-text)
-                           (org-entry-put (point) "LAST" todo-text)))))
+
+    ;; Find TODOs and DONEs in the current buffer
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward
+              (format "^[%s]+\\(\s*?\\)\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
+                      (regexp-quote comment-start))
+              nil t)
+        (let* ((existing-id (match-string-no-properties 3))
+               (todo-state (match-string-no-properties 2))
+               (todo-text (string-trim (match-string-no-properties 4)))
+               (file-name (replace-regexp-in-string "[.-]" "_"
+                                                    (file-name-nondirectory file-path)))
+               (id (or existing-id (substring (uuid-string) 0 8)))
+               (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
+               (entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
+                              org-state
+                              todo-text
+                              file-name
+                              id
+                              todo-text
+                              file-path
+                              todo-text)))
+
+          ;; If no ID exists, add one to the source file
+          (unless existing-id
+            (let ((original-prefix (buffer-substring-no-properties
+                                    (line-beginning-position)
+                                    (match-beginning 2)))
+                  (todo-with-id (format "%s[%s] %s"
+                                        (if (string-match-p "^DONE" todo-state) "DONE" "TODO")
+                                        id todo-text)))
+              (replace-match (concat original-prefix todo-with-id))))
+
+          (push entry todos))))
+
+    ;; Process collected TODOs
+    (with-current-buffer (find-file-noselect org-collect-code-todos-file)
+      (org-mode)
+      (org-collect-code-todos--with-writable-buffer
+       (lambda ()
+         ;; First, collect all TODO IDs from the current source file
+         (let ((source-todo-ids (mapcar
+                                 (lambda (todo)
+                                   (let* ((todo-lines (split-string todo "\n"))
+                                          (id-line (nth 2 todo-lines)))
+                                     (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
+                                       (match-string 1 id-line))))
+                                 todos)))
+
+           (org-collect-code-todos--debug-log
+            "Processing file: %s with %d TODOs, IDs: %s"
+            file-path (length todos) (mapconcat #'identity source-todo-ids ", "))
+
+           ;; Then, find and archive TODOs that reference this file but aren't in the source anymore
+           (org-collect-code-todos--archive-deleted-todos file-path source-todo-ids)
+
+           ;; Now add/update TODOs from the source file
+           (dolist (todo todos)
+             (let* ((todo-lines (split-string todo "\n"))
+                    (heading-line (car todo-lines))
+                    (id-line (nth 2 todo-lines))
+                    (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
+                               (match-string 1 id-line)))
+                    (todo-text (when (string-match "\\* \\(?:TODO\\|DONE\\) \\(.*\\) :" heading-line)
+                                 (match-string 1 heading-line)))
+                    (existing-entry-found nil))
+
+               ;; Check if we have an entry with the same ID
+               (save-excursion
+                 (goto-char (point-min))
+                 (when (and todo-id
+                            (re-search-forward (format ":TODO_ID:\\s-*%s"
+                                                       (regexp-quote todo-id)) nil t))
+                   (setq existing-entry-found t)
+                   (condition-case nil
+                       (org-back-to-heading t)
+                     (error
+                      (setq existing-entry-found nil)))
                    
-                   ;; Add new entry if needed
-                   (unless existing-entry-found
-                     (goto-char (point-max))
-                     (insert "\n" todo)))))
-             
-             (save-buffer)))))))
+                   (when existing-entry-found
+                     ;; Update existing entry if needed
+                     (let* ((props (org-collect-code-todos--extract-todo-properties))
+                            (current-last (plist-get props :last-text))
+                            (current-heading-text (org-get-heading t t t t)))
+
+                       (when (and current-last
+                                  (string= current-last current-heading-text)
+                                  (not (string= current-heading-text todo-text)))
+                         (org-edit-headline todo-text)
+                         (org-entry-put (point) "LAST" todo-text)))))
+
+                 ;; Add new entry if needed
+                 (unless existing-entry-found
+                   (goto-char (point-max))
+                   (insert "\n" todo)))))
+
+           (save-buffer)))))))
 
 (defun org-collect-code-todos--archive-deleted-todos (file-path active-todo-ids)
   "Archive TODOs from the org file that reference FILE-PATH but aren't in ACTIVE-TODO-IDS."
@@ -474,13 +469,6 @@ LAST-TEXT is the previous text of the TODO item."
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
-
-;; Set up key binding for toggling TODO state in source code
-(defun org-collect-code-todos-setup-key-bindings ()
-  "Set up key bindings for org-collect-code-todos."
-  (when (derived-mode-p 'prog-mode)
-    (local-set-key org-collect-code-todos-toggle-key #'org-collect-code-todos-toggle-state-at-point)))
-
 (add-hook 'prog-mode-hook #'org-collect-code-todos-setup-key-bindings)
 
 ;; Add advice

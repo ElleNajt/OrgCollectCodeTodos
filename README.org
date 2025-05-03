@@ -18,16 +18,22 @@ An Emacs package that automatically collects TODO comments from your code files 
 
 ** Configuration
 
-```elisp
+#+begin_src emacs-lisp :tangle yes
+
 ;; Set the path for your code TODOs file (default is ~/code-todos.org)
 (setq org-collect-code-todos-file "~/my-todos.org")
 
 ;; Make the TODOs file editable (default is read-only)
+
 (setq org-collect-code-todos-read-only nil)
 
-;; Change the key for toggling TODO state in source code (default is RET)
-(setq org-collect-code-todos-toggle-key (kbd "C-c t"))
-```
+;; Set the key for toggling TODO state in source code
+
+(map! :after org-collect-code-todos
+      :map prog-mode-map
+      :n "RET" #'org-collect-code-todos-toggle-state-at-point)
+#+end_src
+
 
 ** Usage
 
