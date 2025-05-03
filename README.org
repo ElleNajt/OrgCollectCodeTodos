@@ -4,6 +4,10 @@ Written almost entirely by Claude 3.7 using aider.
 
 An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
 
+This org mode file is kept read-only, except for toggling TODO/DONE and archiving, to keep synchronization simple but keep compatibility with standard org-mode functionality.
+
+Changes to the TODO in the source code file update in the org mode file by giving each TODO an ID. When a TODO is deleted from the source code file, it is archived in the todo org mode file.
+
 ** Installation
 
 There are several ways to install this package:
@@ -113,6 +117,8 @@ The package uses hooks to:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+
 * Improvements
 
 *** TODO Find some way to use overlays and indirect buffers to make the org todo simultaneously editable with the code.
+*** TODO Add scheduling
