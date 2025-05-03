@@ -342,7 +342,7 @@ LAST-TEXT is the previous text of the TODO item."
   (when (and (eq major-mode 'org-mode)
              (org-collect-code-todos--is-todos-buffer-p)
              (member org-state '("TODO" "DONE")))
-    (condition-case nil
+    (condition-case err
         (let* ((props (org-collect-code-todos--extract-todo-properties))
                (todo-id (plist-get props :id))
                (path (plist-get props :path))
