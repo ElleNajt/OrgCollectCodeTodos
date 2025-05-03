@@ -53,7 +53,7 @@ There are several ways to install this package:
 
 #+begin_src emacs-lisp :tangle yes
 
-;; Set the path for your code TODOs file (default is ~/code-todos.org)
+;; Set the path for your code TODOs file (default is ~/org/code-todos.org)
 (setq org-collect-code-todos-file "~/my-todos.org")
 
 ;; Change the key for toggling TODO state in source code

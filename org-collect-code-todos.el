@@ -31,7 +31,7 @@
   :group 'org
   :prefix "org-collect-code-todos-")
 
-(defcustom org-collect-code-todos-file (expand-file-name "~/code-todos.org")
+(defcustom org-collect-code-todos-file (expand-file-name "~/org/code-todos.org")
   "File path where code TODOs will be collected."
   :type 'file
   :group 'org-collect-code-todos)
