@@ -149,19 +149,22 @@ Returns a plist with :id, :path, and :last-text properties."
         (comment-start (string-trim comment-start))
         todos)
       
-      ;; Find TODOs in the current buffer
+      ;; Find TODOs and DONEs in the current buffer
       (save-excursion
         (goto-char (point-min))
         (while (re-search-forward 
-                (format "^[%s]+\\(\s*?\\)\\(TODO\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
+                (format "^[%s]+\\(\s*?\\)\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
                         (regexp-quote comment-start)) 
                 nil t)
           (let* ((existing-id (match-string-no-properties 3))
+                 (todo-state (match-string-no-properties 2))
                  (todo-text (string-trim (match-string-no-properties 4)))
                  (file-name (replace-regexp-in-string "[.-]" "_"
                                                       (file-name-nondirectory file-path)))
                  (id (or existing-id (substring (uuid-string) 0 8)))
-                 (entry (format "* TODO %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
+                 (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
+                 (entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
+                                org-state
                                 todo-text
                                 file-name
                                 id
@@ -174,7 +177,9 @@ Returns a plist with :id, :path, and :last-text properties."
               (let ((original-prefix (buffer-substring-no-properties 
                                       (line-beginning-position)
                                       (match-beginning 2)))
-                    (todo-with-id (format "TODO[%s] %s" id todo-text)))
+                    (todo-with-id (format "%s[%s] %s" 
+                                          (if (string-match-p "^DONE" todo-state) "DONE" "TODO")
+                                          id todo-text)))
                 (replace-match (concat original-prefix todo-with-id))))
             
             (push entry todos))))
@@ -207,7 +212,7 @@ Returns a plist with :id, :path, and :last-text properties."
                       (id-line (nth 2 todo-lines))
                       (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
                                  (match-string 1 id-line)))
-                      (todo-text (when (string-match "\\* TODO \\(.*\\) :" heading-line)
+                      (todo-text (when (string-match "\\* \\(?:TODO\\|DONE\\) \\(.*\\) :" heading-line)
                                    (match-string 1 heading-line)))
                       (existing-entry-found nil))
                  
