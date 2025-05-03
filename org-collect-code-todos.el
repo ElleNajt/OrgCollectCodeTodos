@@ -31,6 +31,11 @@
   :group 'org
   :prefix "org-collect-code-todos-")
 
+(defcustom org-collect-code-todos-toggle-key (kbd "RET")
+  "Key to toggle TODO/DONE state in source code."
+  :type 'key-sequence
+  :group 'org-collect-code-todos)
+
 (defcustom org-collect-code-todos-file (expand-file-name "~/code-todos.org")
   "File path where code TODOs will be collected."
   :type 'file
@@ -310,6 +315,57 @@ Returns a plist with :id, :path, and :last-text properties."
         (message "Archived %d TODOs that no longer exist in %s" 
                  archived-count (file-name-nondirectory file-path))))))
 
+(defun org-collect-code-todos-toggle-state-at-point ()
+  "Toggle the TODO/DONE state of the TODO comment at point."
+  (interactive)
+  (when (derived-mode-p 'prog-mode)
+    (save-excursion
+      (beginning-of-line)
+      (let ((line-start (point))
+            (comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
+        (when (looking-at comment-start-regex)
+          (let ((todo-regex "\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
+            (when (re-search-forward todo-regex (line-end-position) t)
+              (let* ((current-state (match-string 1))
+                     (todo-id (match-string 3))
+                     (todo-text (match-string 4))
+                     (new-state (if (string= current-state "TODO") "DONE" "TODO")))
+                
+                ;; If no ID exists, generate one
+                (unless todo-id
+                  (setq todo-id (substring (uuid-string) 0 8)))
+                
+                ;; Replace the TODO/DONE state
+                (replace-match (concat new-state "[" todo-id "] " todo-text)
+                               t t nil 0)
+                
+                ;; Update the org file entry if it exists
+                (org-collect-code-todos--update-org-entry-state todo-id new-state)
+                
+                ;; Save the buffer
+                (save-buffer)
+                (message "Toggled %s to %s" current-state new-state)))))))))
+
+(defun org-collect-code-todos--update-org-entry-state (todo-id new-state)
+  "Update the state of the org entry with TODO-ID to NEW-STATE."
+  (when (file-exists-p org-collect-code-todos-file)
+    (with-current-buffer (find-file-noselect org-collect-code-todos-file)
+      (org-mode)
+      (org-collect-code-todos--with-writable-buffer
+       (lambda ()
+         (save-excursion
+           (goto-char (point-min))
+           (when (re-search-forward (format ":TODO_ID:\\s-*%s" 
+                                            (regexp-quote todo-id)) nil t)
+             (condition-case nil
+                 (progn
+                   (org-back-to-heading t)
+                   (let ((current-state (org-get-todo-state)))
+                     (when (and current-state
+                                (not (string= current-state new-state)))
+                       (org-todo new-state))))
+               (error nil)))))))))
+
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.
 PATH is the source file path.
@@ -418,6 +474,14 @@ LAST-TEXT is the previous text of the TODO item."
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
+
+;; Set up key binding for toggling TODO state in source code
+(defun org-collect-code-todos-setup-key-bindings ()
+  "Set up key bindings for org-collect-code-todos."
+  (when (derived-mode-p 'prog-mode)
+    (local-set-key org-collect-code-todos-toggle-key #'org-collect-code-todos-toggle-state-at-point)))
+
+(add-hook 'prog-mode-hook #'org-collect-code-todos-setup-key-bindings)
 
 ;; Add advice
 (advice-add 'org-todo  :around #'org-collect-code-todos-safe-toggle-tag)

@@ -24,6 +24,9 @@ An Emacs package that automatically collects TODO comments from your code files 
 
 ;; Make the TODOs file editable (default is read-only)
 (setq org-collect-code-todos-read-only nil)
+
+;; Change the key for toggling TODO state in source code (default is RET)
+(setq org-collect-code-todos-toggle-key (kbd "C-c t"))
 ```
 
 ** Usage
@@ -46,8 +49,14 @@ This will only detected TODO's that appear after some number of comment characte
    ```python
    # DONE This needs optimization
    ```
+
+5. You can also toggle TODO/DONE state directly in your source code:
+   - Place your cursor on a TODO line
+   - Press Enter (or your configured key)
+   - The state will toggle between TODO and DONE
+   - The change will be synchronized with the org file
    
-5. The org file is kept read only, to prevent synchronization issues.
+6. The org file is kept read only, to prevent synchronization issues.
 
 ** How It Works
 
