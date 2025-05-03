@@ -223,7 +223,7 @@ Returns a plist with :id, :path, and :last-text properties."
                      (goto-char (point-max))
                      (insert "\n" todo)))))
              
-             (save-buffer)))))))))
+             (save-buffer))))))))
 
 (defun org-collect-code-todos--remove-deleted-todos (file-path active-todo-ids)
   "Remove TODOs from the org file that reference FILE-PATH but aren't in ACTIVE-TODO-IDS."
