@@ -80,7 +80,7 @@ This will only detect TODOs that appear after some number of comment characters,
    - Mark TODOs as DONE (which updates the source code)
    - Schedule TODOs or set deadlines
    - Archive completed TODOs
-   - Add notes or subtasks
+   - Add tags to TODOs
 
 4. When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
    
