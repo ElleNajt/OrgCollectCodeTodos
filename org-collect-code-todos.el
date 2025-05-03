@@ -145,10 +145,9 @@ Returns a plist with :id, :path, and :last-text properties."
 
 (defun org-collect-code-todos--do-collect-and-add ()
   "Internal function that does the actual TODO collection work."
-  (when (derived-mode-p 'prog-mode)
-    (let ((file-path (buffer-file-name))
-          (comment-start (string-trim comment-start))
-          todos)
+  (let ((file-path (buffer-file-name))
+        (comment-start (string-trim comment-start))
+        todos)
       
       ;; Find TODOs in the current buffer
       (save-excursion
