@@ -57,6 +57,15 @@ This is used during operations like changing TODO states or archiving.")
 
 ;;; Helper functions
 
+(defun org-collect-code-todos--debug-log (message &rest args)
+  "Write a debug log message to .aider-debug-logs file."
+  (let ((log-file (expand-file-name ".aider-debug-logs")))
+    (with-temp-buffer
+      (insert (format "[%s] " (format-time-string "%Y-%m-%d %H:%M:%S")))
+      (insert (apply #'format message args))
+      (insert "\n")
+      (append-to-file (point-min) (point-max) log-file))))
+
 (defun org-collect-code-todos--is-todos-buffer-p ()
   "Check if current buffer is the code-todos file."
   (and (buffer-file-name)
@@ -117,7 +126,7 @@ Returns a plist with :id, :path, and :last-text properties."
 ;;; Core functionality
 
 (defun org-collect-code-todos-collect-and-add ()
-  "Collect TODOs from current buffer and add them to the org file."
+  "Collect TODOs from current buffer, add them to the org file, and remove deleted ones."
   (when (derived-mode-p 'prog-mode)
     (let ((file-path (buffer-file-name))
           (comment-start (string-trim comment-start))
@@ -154,11 +163,27 @@ Returns a plist with :id, :path, and :last-text properties."
             (push entry todos))))
       
       ;; Process collected TODOs
-      (when todos
-        (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-          (org-mode)
-          (org-collect-code-todos--with-writable-buffer
-           (lambda ()
+      (with-current-buffer (find-file-noselect org-collect-code-todos-file)
+        (org-mode)
+        (org-collect-code-todos--with-writable-buffer
+         (lambda ()
+           ;; First, collect all TODO IDs from the current source file
+           (let ((source-todo-ids (mapcar 
+                                   (lambda (todo)
+                                     (let* ((todo-lines (split-string todo "\n"))
+                                            (id-line (nth 2 todo-lines)))
+                                       (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
+                                         (match-string 1 id-line))))
+                                   todos)))
+             
+             (org-collect-code-todos--debug-log 
+              "Processing file: %s with %d TODOs, IDs: %s" 
+              file-path (length todos) (mapconcat #'identity source-todo-ids ", "))
+             
+             ;; Then, find and remove TODOs that reference this file but aren't in the source anymore
+             (org-collect-code-todos--remove-deleted-todos file-path source-todo-ids)
+             
+             ;; Now add/update TODOs from the source file
              (dolist (todo todos)
                (let* ((todo-lines (split-string todo "\n"))
                       (heading-line (car todo-lines))
@@ -196,9 +221,40 @@ Returns a plist with :id, :path, and :last-text properties."
                    ;; Add new entry if needed
                    (unless existing-entry-found
                      (goto-char (point-max))
-                     (insert "\n" todo))))
-               
-               (save-buffer)))))))))
+                     (insert "\n" todo)))))
+             
+             (save-buffer)))))))))
+
+(defun org-collect-code-todos--remove-deleted-todos (file-path active-todo-ids)
+  "Remove TODOs from the org file that reference FILE-PATH but aren't in ACTIVE-TODO-IDS."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((file-path-regexp (regexp-quote file-path))
+          (removed-count 0))
+      (while (re-search-forward file-path-regexp nil t)
+        (condition-case nil
+            (progn
+              (org-back-to-heading t)
+              (let* ((props (org-collect-code-todos--extract-todo-properties))
+                     (todo-id (plist-get props :id))
+                     (path (plist-get props :path)))
+                
+                ;; If this entry references our file but its ID isn't in active-todo-ids, delete it
+                (when (and path 
+                           (string= path file-path)
+                           todo-id
+                           (not (member todo-id active-todo-ids)))
+                  (org-collect-code-todos--debug-log 
+                   "Removing TODO with ID %s (not found in source)" todo-id)
+                  (let ((start (point)))
+                    (org-end-of-subtree t t)
+                    (delete-region start (point))
+                    (setq removed-count (1+ removed-count))))))
+          (error nil)))
+      
+      (when (> removed-count 0)
+        (message "Removed %d TODOs that no longer exist in %s" 
+                 removed-count (file-name-nondirectory file-path))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.
