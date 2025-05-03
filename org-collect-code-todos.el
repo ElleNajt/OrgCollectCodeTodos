@@ -446,6 +446,20 @@ LAST-TEXT is the previous text of the TODO item."
     (org-collect-code-todos--with-writable-buffer
      (lambda () (apply orig-fun args)))))
 
+(defun org-collect-code-todos-safe-schedule (orig-fun &rest args)
+  "Safely execute org-schedule with proper read-only handling."
+  (if (not (org-collect-code-todos--is-todos-buffer-p))
+      (apply orig-fun args)
+    (org-collect-code-todos--with-writable-buffer
+     (lambda () (apply orig-fun args)))))
+
+(defun org-collect-code-todos-safe-deadline (orig-fun &rest args)
+  "Safely execute org-deadline with proper read-only handling."
+  (if (not (org-collect-code-todos--is-todos-buffer-p))
+      (apply orig-fun args)
+    (org-collect-code-todos--with-writable-buffer
+     (lambda () (apply orig-fun args)))))
+
 
 ;;; Setup hooks and advice
 
@@ -476,6 +490,8 @@ LAST-TEXT is the previous text of the TODO item."
 (advice-add 'org-archive-subtree :around #'org-collect-code-todos-safe-archive-subtree)
 (advice-add 'org-archive-subtree-default :around #'org-collect-code-todos-safe-archive-subtree)
 (advice-add 'org-toggle-tag :around #'org-collect-code-todos-safe-toggle-tag)
+(advice-add 'org-schedule :around #'org-collect-code-todos-safe-schedule)
+(advice-add 'org-deadline :around #'org-collect-code-todos-safe-deadline)
 
 (provide 'org-collect-code-todos)
 

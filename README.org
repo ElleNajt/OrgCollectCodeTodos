@@ -78,6 +78,7 @@ This will only detect TODOs that appear after some number of comment characters,
 
 3. In the Org file, you can:
    - Mark TODOs as DONE (which updates the source code)
+   - Schedule TODOs or set deadlines
    - Archive completed TODOs
    - Add notes or subtasks
 
@@ -112,6 +113,7 @@ The package uses hooks to:
 3. Create corresponding entries in your Org file
 4. Archive entries in the Org file when the corresponding TODO is deleted from the source code
 5. Update the source code when you change TODO states in the Org file
+6. Allow scheduling and setting deadlines on TODOs in the org file
 
 ** License
 
@@ -121,4 +123,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 * Improvements
 
 *** TODO Find some way to use overlays and indirect buffers to make the org todo simultaneously editable with the code.
-*** TODO Add scheduling
+*** DONE Add scheduling
