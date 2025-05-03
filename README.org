@@ -4,6 +4,35 @@ Written almost entirely by Claude 3.7 using aider.
 
 An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
 
+** Installation
+
+There are several ways to install this package:
+
+*** Manual Installation
+
+1. Download the ~org-collect-code-todos.el~ file
+2. Place it in your Emacs load path
+3. Add to your configuration:
+
+   #+begin_src emacs-lisp
+   (require 'org-collect-code-todos)
+   #+end_src
+
+*** Using use-package
+
+   #+begin_src emacs-lisp
+   (use-package org-collect-code-todos
+     :load-path "/path/to/org-collect-code-todos"
+     :hook (after-init . org-collect-code-todos-mode))
+   #+end_src
+
+*** Using straight.el
+
+   #+begin_src emacs-lisp
+   (straight-use-package
+    '(org-collect-code-todos :host github :repo "yourusername/org-collect-code-todos"))
+   #+end_src
+
 ** Overview
 
 `org-collect-code-todos` scans your code files for TODO comments and maintains a centralized Org mode file where you can track and manage them. When you mark a TODO as DONE in the Org file, it updates the corresponding comment in the source code.
@@ -34,13 +63,14 @@ An Emacs package that automatically collects TODO comments from your code files 
 ** Usage
 
 1. Add TODOs to your code as comments:
-   ```python
+   
+   #+begin_src python
    # TODO This needs optimization
-   ```
+   #+end_src
 
 2. Save the file, and the TODO will be collected into your org-collect-code-todos file.
 
-This will only detected TODO's that appear after some number of comment characters, followed by whitespace.
+This will only detect TODOs that appear after some number of comment characters, followed by whitespace.
 
 3. In the Org file, you can:
    - Mark TODOs as DONE (which updates the source code)
@@ -48,15 +78,21 @@ This will only detected TODO's that appear after some number of comment characte
    - Add notes or subtasks
 
 4. When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
-   ```python
+   
+   #+begin_src python
    # DONE This needs optimization
-   ```
+   #+end_src
 
 5. You can also toggle TODO/DONE state directly in your source code:
    - Place your cursor on a TODO line
    - Press Enter (or your configured key)
    - The state will toggle between TODO and DONE
    - The change will be synchronized with the org file
+
+   #+begin_src emacs-lisp
+   ;; Example of binding a different key for toggling
+   (setq org-collect-code-todos-toggle-key (kbd "C-c t"))
+   #+end_src
    
 6. The org file is kept read only, to prevent synchronization issues.
 
@@ -64,7 +100,11 @@ This will only detected TODO's that appear after some number of comment characte
 
 The package uses hooks to:
 1. Scan files on save for TODOs inside of comments.
-2. Add unique IDs to TODOs in your code: `TODO[a1b2c3d4] Fix this later`
+2. Add unique IDs to TODOs in your code: 
+   
+   #+begin_src python
+   # TODO[a1b2c3d4] Fix this later
+   #+end_src
 3. Create corresponding entries in your Org file
 4. Archive entries in the Org file when the corresponding TODO is deleted from the source code
 5. Update the source code when you change TODO states in the Org file
