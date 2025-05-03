@@ -23,10 +23,6 @@ An Emacs package that automatically collects TODO comments from your code files 
 ;; Set the path for your code TODOs file (default is ~/code-todos.org)
 (setq org-collect-code-todos-file "~/my-todos.org")
 
-;; Make the TODOs file editable (default is read-only)
-
-(setq org-collect-code-todos-read-only nil)
-
 ;; Set the key for toggling TODO state in source code
 
 (map! :after org-collect-code-todos
