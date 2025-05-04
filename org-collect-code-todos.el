@@ -573,18 +573,20 @@ LAST-TEXT is the previous text of the TODO item."
   "Update TODO/DONE state in source file when changed in code-todos.org."
   (when (and (eq major-mode 'org-mode)
              (org-collect-code-todos--is-todos-buffer-p)
-             (or (member org-state '("TODO" "DONE"))
+             (or (and (boundp 'org-state) (member org-state '("TODO" "DONE")))
                  (org-entry-get nil "SCHEDULED")
                  (org-entry-get nil "DEADLINE")))
     (org-collect-code-todos--debug-log 
      "Org TODO state or scheduling changed to %s in %s" 
-     org-state (buffer-file-name))
+     (if (boundp 'org-state) org-state "scheduling only") 
+     (buffer-file-name))
     (condition-case err
         (let* ((props (org-collect-code-todos--extract-todo-properties))
                (todo-id (plist-get props :id))
                (path (plist-get props :path))
                (last-text (plist-get props :last-text))
                (org-todo-text (org-get-heading t t t t))
+               (current-state (org-get-todo-state))
                (scheduled (org-entry-get nil "SCHEDULED"))
                (deadline (org-entry-get nil "DEADLINE")))
           
@@ -625,7 +627,9 @@ LAST-TEXT is the previous text of the TODO item."
             
             ;; Update the TODO state and text
             (let ((update-result (org-collect-code-todos-update-source-file-by-id
-                                  path todo-id org-state org-todo-text last-text)))
+                                  path todo-id 
+                                  (if (boundp 'org-state) org-state current-state)
+                                  org-todo-text last-text)))
               
               ;; If update-result is non-nil, we need to update the TODO_ID property
               (when update-result
@@ -864,6 +868,8 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
 ;; Add hooks
 (add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
 (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
+(add-hook 'org-after-schedule-hook #'org-collect-code-todos-mark-source-todo-state)
+(add-hook 'org-after-deadline-hook #'org-collect-code-todos-mark-source-todo-state)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
 
