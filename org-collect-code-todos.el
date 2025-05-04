@@ -152,12 +152,12 @@ Returns a plist with :id, :path, and :last-text properties."
     (save-excursion
       (goto-char (point-min))
       (while (re-search-forward
-              (format "^[%s]+\\(\s*?\\)\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
+              (format "^\\s-*[%s]*\\s-*\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
                       (regexp-quote comment-start))
               nil t)
-        (let* ((existing-id (match-string-no-properties 3))
-               (todo-state (match-string-no-properties 2))
-               (todo-text (string-trim (match-string-no-properties 4)))
+        (let* ((existing-id (match-string-no-properties 2))
+               (todo-state (match-string-no-properties 1))
+               (todo-text (string-trim (match-string-no-properties 3)))
                (file-name (replace-regexp-in-string "[.-]" "_"
                                                     (file-name-nondirectory file-path)))
                (id (or existing-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
@@ -332,7 +332,7 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
       (beginning-of-line)
       (let ((comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
         (when (looking-at comment-start-regex)
-          (let ((todo-regex "\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
+          (let ((todo-regex "\\s-*\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
             (when (re-search-forward todo-regex (line-end-position) t)
               (let ((todo-id (match-string 3)))
                 (if todo-id
@@ -412,7 +412,7 @@ LAST-TEXT is the previous text of the TODO item."
       ;; Search for the TODO[c40ac004] with the specific ID
       (goto-char (point-min))
       (while (and (not found)
-                  (re-search-forward (format "\\(^\\|[ \t]\\)\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
+                  (re-search-forward (format "\\(^\\|[ \t]\\)\\s-*\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
                                              (regexp-quote todo-id))
                                      nil t))
         (setq found t)
