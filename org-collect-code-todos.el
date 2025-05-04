@@ -764,7 +764,8 @@ LAST-TEXT is the previous text of the TODO item."
               (let* ((todo-id (match-string 3))
                      (todo-text (match-string 4))
                      (scheduled-date (org-read-date nil t))
-                     (existing-deadline nil))
+                     (existing-deadline nil)
+                     (existing-scheduled nil))
                 
                 (org-collect-code-todos--debug-log 
                  "TODO details: id=%s, text='%s', date=%s" 
@@ -783,59 +784,78 @@ LAST-TEXT is the previous text of the TODO item."
                      "Replacing with: '%s%s'" original-prefix todo-with-id)
                     (replace-match (concat original-prefix todo-with-id))))
                 
-                ;; Check for existing deadline - only take the first one found
+                ;; Check for existing scheduled and deadline
                 (save-excursion
                   (forward-line 1)
-                  (let ((deadline-found nil))
-                    (while (and (not deadline-found)
+                  (let ((scheduling-found nil))
+                    (while (and (not scheduling-found)
                                 (< (point) (point-max))
                                 (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
                                                     (regexp-quote (string-trim comment-start)))))
                       (let ((comment-text (match-string-no-properties 1)))
                         (org-collect-code-todos--debug-log 
                          "Checking comment line: '%s'" comment-text)
-                        (when (and (not deadline-found)
-                                   (string-match "DEADLINE:\\s-*\\(<[^>]+>\\)" comment-text))
+                        
+                        ;; Extract SCHEDULED if not already found
+                        (when (string-match "SCHEDULED:\\s-*\\(<[^>]+>\\)" comment-text)
+                          (setq existing-scheduled (match-string 1 comment-text))
+                          (org-collect-code-todos--debug-log 
+                           "Found existing scheduled: %s" existing-scheduled)
+                          (setq scheduling-found t))
+                        
+                        ;; Extract DEADLINE if not already found
+                        (when (string-match "DEADLINE:\\s-*\\(<[^>]+>\\)" comment-text)
                           (setq existing-deadline (match-string 1 comment-text))
                           (org-collect-code-todos--debug-log 
-                           "Found existing deadline: %s" existing-deadline)
-                          (setq deadline-found t))
+                           "Found existing deadline: %s" existing-deadline))
+                        
                         (forward-line 1)))))
                 
                 ;; Format the date string
-                (let ((date-str (format-time-string "%Y-%m-%d %a" scheduled-date)))
-                  (org-collect-code-todos--debug-log 
-                   "Formatted date string: %s" date-str)
+                (let ((date-str (format-time-string "%Y-%m-%d %a" scheduled-date))
+                      (new-scheduled (format "<%s>" (format-time-string "%Y-%m-%d %a" scheduled-date))))
                   
-                  ;; Log buffer content before update
-                  (org-collect-code-todos--log-buffer-content "Before scheduling update")
-                  
-                  ;; Update scheduling comment
-                  (org-collect-code-todos--update-scheduling-comments 
-                   (string-trim comment-start) todo-id 
-                   (format "<%s>" date-str) existing-deadline)
-                  
-                  ;; Log buffer content after update
-                  (org-collect-code-todos--log-buffer-content "After scheduling update")
-                  
-                  ;; Update the org file entry if it exists
-                  (org-collect-code-todos--update-org-scheduling todo-id 
-                                                                 (format "<%s>" date-str) existing-deadline)
-
-                  ;; Save the buffer with detailed logging
-                  (org-collect-code-todos--debug-log "About to save buffer after scheduling")
-                  (condition-case err
+                  ;; Check if the scheduled date is actually changing
+                  (if (and existing-scheduled (string= existing-scheduled new-scheduled))
                       (progn
-                        (save-buffer)
-                        (org-collect-code-todos--debug-log "Buffer saved successfully"))
-                    (error
-                     (org-collect-code-todos--debug-log 
-                      "Error saving buffer: %s" (error-message-string err))))
-                  
-                  ;; Capture apheleia output after save
-                  (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
-                  
-                  (message "Scheduled for %s" date-str))))))))))
+                        (org-collect-code-todos--debug-log 
+                         "Scheduled date unchanged (%s), skipping update" existing-scheduled)
+                        (message "Already scheduled for %s" date-str))
+                    
+                    ;; Only proceed with update if scheduled date is changing
+                    (org-collect-code-todos--debug-log 
+                     "Changing scheduled date from %s to %s" 
+                     (or existing-scheduled "nil") new-scheduled)
+                    
+                    ;; Log buffer content before update
+                    (org-collect-code-todos--log-buffer-content "Before scheduling update")
+                    
+                    ;; Update scheduling comment
+                    (org-collect-code-todos--update-scheduling-comments 
+                     (string-trim comment-start) todo-id 
+                     new-scheduled existing-deadline)
+                    
+                    ;; Log buffer content after update
+                    (org-collect-code-todos--log-buffer-content "After scheduling update")
+                    
+                    ;; Update the org file entry if it exists
+                    (org-collect-code-todos--update-org-scheduling todo-id 
+                                                                   new-scheduled existing-deadline)
+                    
+                    ;; Save the buffer with detailed logging
+                    (org-collect-code-todos--debug-log "About to save buffer after scheduling")
+                    (condition-case err
+                        (progn
+                          (save-buffer)
+                          (org-collect-code-todos--debug-log "Buffer saved successfully"))
+                      (error
+                       (org-collect-code-todos--debug-log 
+                        "Error saving buffer: %s" (error-message-string err))))
+                    
+                    ;; Capture apheleia output after save
+                    (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
+                    
+                    (message "Scheduled for %s" date-str))))))))))))
 
 (defun org-collect-code-todos-set-deadline-at-point ()
   "Add or modify a DEADLINE timestamp for the TODO at point."
@@ -861,7 +881,8 @@ LAST-TEXT is the previous text of the TODO item."
               (let* ((todo-id (match-string 3))
                      (todo-text (match-string 4))
                      (deadline-date (org-read-date nil t))
-                     (existing-scheduled nil))
+                     (existing-scheduled nil)
+                     (existing-deadline nil))
                 
                 (org-collect-code-todos--debug-log 
                  "TODO details: id=%s, text='%s', date=%s" 
@@ -880,59 +901,78 @@ LAST-TEXT is the previous text of the TODO item."
                      "Replacing with: '%s%s'" original-prefix todo-with-id)
                     (replace-match (concat original-prefix todo-with-id))))
                 
-                ;; Check for existing scheduled - only take the first one found
+                ;; Check for existing scheduled and deadline
                 (save-excursion
                   (forward-line 1)
-                  (let ((scheduled-found nil))
-                    (while (and (not scheduled-found)
+                  (let ((scheduling-found nil))
+                    (while (and (not scheduling-found)
                                 (< (point) (point-max))
                                 (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
                                                     (regexp-quote (string-trim comment-start)))))
                       (let ((comment-text (match-string-no-properties 1)))
                         (org-collect-code-todos--debug-log 
                          "Checking comment line: '%s'" comment-text)
-                        (when (and (not scheduled-found)
-                                   (string-match "SCHEDULED:\\s-*\\(<[^>]+>\\)" comment-text))
+                        
+                        ;; Extract SCHEDULED if not already found
+                        (when (string-match "SCHEDULED:\\s-*\\(<[^>]+>\\)" comment-text)
                           (setq existing-scheduled (match-string 1 comment-text))
                           (org-collect-code-todos--debug-log 
-                           "Found existing scheduled: %s" existing-scheduled)
-                          (setq scheduled-found t))
+                           "Found existing scheduled: %s" existing-scheduled))
+                        
+                        ;; Extract DEADLINE if not already found
+                        (when (string-match "DEADLINE:\\s-*\\(<[^>]+>\\)" comment-text)
+                          (setq existing-deadline (match-string 1 comment-text))
+                          (org-collect-code-todos--debug-log 
+                           "Found existing deadline: %s" existing-deadline)
+                          (setq scheduling-found t))
+                        
                         (forward-line 1)))))
                 
                 ;; Format the date string
-                (let ((date-str (format-time-string "%Y-%m-%d %a" deadline-date)))
-                  (org-collect-code-todos--debug-log 
-                   "Formatted date string: %s" date-str)
+                (let ((date-str (format-time-string "%Y-%m-%d %a" deadline-date))
+                      (new-deadline (format "<%s>" (format-time-string "%Y-%m-%d %a" deadline-date))))
                   
-                  ;; Log buffer content before update
-                  (org-collect-code-todos--log-buffer-content "Before deadline update")
-                  
-                  ;; Update deadline comment
-                  (org-collect-code-todos--update-scheduling-comments 
-                   (string-trim comment-start) todo-id 
-                   existing-scheduled (format "<%s>" date-str))
-                  
-                  ;; Log buffer content after update
-                  (org-collect-code-todos--log-buffer-content "After deadline update")
-                  
-                  ;; Update the org file entry if it exists
-                  (org-collect-code-todos--update-org-scheduling todo-id 
-                                                                 existing-scheduled (format "<%s>" date-str))
-
-                  ;; Save the buffer with detailed logging
-                  (org-collect-code-todos--debug-log "About to save buffer after setting deadline")
-                  (condition-case err
+                  ;; Check if the deadline is actually changing
+                  (if (and existing-deadline (string= existing-deadline new-deadline))
                       (progn
-                        (save-buffer)
-                        (org-collect-code-todos--debug-log "Buffer saved successfully"))
-                    (error
-                     (org-collect-code-todos--debug-log 
-                      "Error saving buffer: %s" (error-message-string err))))
-                  
-                  ;; Capture apheleia output after save
-                  (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
-                  
-                  (message "Deadline set for %s" date-str))))))))))
+                        (org-collect-code-todos--debug-log 
+                         "Deadline unchanged (%s), skipping update" existing-deadline)
+                        (message "Deadline already set to %s" date-str))
+                    
+                    ;; Only proceed with update if deadline is changing
+                    (org-collect-code-todos--debug-log 
+                     "Changing deadline from %s to %s" 
+                     (or existing-deadline "nil") new-deadline)
+                    
+                    ;; Log buffer content before update
+                    (org-collect-code-todos--log-buffer-content "Before deadline update")
+                    
+                    ;; Update deadline comment
+                    (org-collect-code-todos--update-scheduling-comments 
+                     (string-trim comment-start) todo-id 
+                     existing-scheduled new-deadline)
+                    
+                    ;; Log buffer content after update
+                    (org-collect-code-todos--log-buffer-content "After deadline update")
+                    
+                    ;; Update the org file entry if it exists
+                    (org-collect-code-todos--update-org-scheduling todo-id 
+                                                                   existing-scheduled new-deadline)
+                    
+                    ;; Save the buffer with detailed logging
+                    (org-collect-code-todos--debug-log "About to save buffer after setting deadline")
+                    (condition-case err
+                        (progn
+                          (save-buffer)
+                          (org-collect-code-todos--debug-log "Buffer saved successfully"))
+                      (error
+                       (org-collect-code-todos--debug-log 
+                        "Error saving buffer: %s" (error-message-string err))))
+                    
+                    ;; Capture apheleia output after save
+                    (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
+                    
+                    (message "Deadline set for %s" date-str))))))))))))
 
 (defun org-collect-code-todos--update-org-scheduling (todo-id scheduled deadline)
   "Update scheduling information in the org entry with TODO-ID.
