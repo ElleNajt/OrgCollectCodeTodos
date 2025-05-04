@@ -428,25 +428,31 @@ SCHEDULED and DEADLINE are the timestamp strings from the org file."
       (let ((indent (make-string (current-indentation) ? )))
         ;; First, delete all scheduling lines after this TODO
         (forward-line 1)
-        (let ((start-pos (point)))
+        (let ((start-pos (point))
+              (end-pos nil))
+          ;; Find all consecutive scheduling comment lines
           (while (and (< (point) (point-max))
-                      (looking-at (format "^\\s-*[%s]+\\s-*.*\\(SCHEDULED:\\|DEADLINE:\\)"
-                                          (regexp-quote (string-trim comment-start)))))
+                      (looking-at (format "^\\s-*%s\\s-*\\(SCHEDULED:\\|DEADLINE:\\)"
+                                          (regexp-quote comment-start))))
             (forward-line 1))
-          (delete-region start-pos (point)))
-        
-        ;; Add scheduling comments if needed
-        (when (or scheduled deadline)
-          (goto-char (line-beginning-position))
-          (end-of-line)
-          (let ((comment-prefix (concat (string-trim comment-start) " ")))
-            ;; Add SCHEDULED line if present
-            (when scheduled
-              (insert "\n" indent comment-prefix "SCHEDULED: " scheduled))
-            
-            ;; Add DEADLINE line if present
-            (when deadline
-              (insert "\n" indent comment-prefix "DEADLINE: " deadline))))))))
+          (setq end-pos (point))
+          
+          ;; Delete all existing scheduling lines
+          (when (> end-pos start-pos)
+            (delete-region start-pos end-pos))
+          
+          ;; Add scheduling comments if needed
+          (when (or scheduled deadline)
+            (goto-char (line-beginning-position))
+            (end-of-line)
+            (let ((comment-prefix (concat comment-start " ")))
+              ;; Add SCHEDULED line if present
+              (when scheduled
+                (insert "\n" indent comment-prefix "SCHEDULED: " scheduled))
+              
+              ;; Add DEADLINE line if present
+              (when deadline
+                (insert "\n" indent comment-prefix "DEADLINE: " deadline)))))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text)
   "Update TODO state in source file by searching for its ID.
@@ -500,6 +506,10 @@ ORG-TODO-TEXT is the text of the TODO item."
                (current-state (org-get-todo-state))
                (scheduled (org-entry-get nil "SCHEDULED"))
                (deadline (org-entry-get nil "DEADLINE")))
+          
+          (org-collect-code-todos--debug-log
+           "Extracted properties: id=%s, path=%s, scheduled=%s, deadline=%s"
+           todo-id path scheduled deadline)
           
           (when (and todo-id path)
             ;; Update the TODO state in source file
