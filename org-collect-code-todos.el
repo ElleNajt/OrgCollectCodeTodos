@@ -88,11 +88,11 @@ or nil if no TODO is found."
     (beginning-of-line)
     (let ((comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
       (when (looking-at comment-start-regex)
-        (let ((todo-regex "\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
+        (let ((todo-regex "\\(TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
           (when (re-search-forward todo-regex (line-end-position) t)
-            (let* ((todo-id (match-string 3))
-                   (todo-state (match-string 1))
-                   (todo-text (match-string 4))
+            (let* ((todo-id (match-string-no-properties 2))
+                   (todo-state (match-string-no-properties 1))
+                   (todo-text (match-string-no-properties 3))
                    (existing-scheduled nil)
                    (existing-deadline nil))
               
@@ -433,6 +433,10 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
   (if (string-match "\\(TODO\\|DONE\\)" heading)
       (match-string 1 heading)
     nil))
+
+(defun org-collect-code-todos--get-id-from-properties ()
+  "Get the TODO_ID property from the current org entry."
+  (org-entry-get nil "TODO_ID"))
 
 (defun org-collect-code-todos--get-id-from-properties ()
   "Get the TODO_ID property from the current org entry."
