@@ -232,9 +232,9 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
               ;; Add scheduling information if present
               (when (or scheduled deadline)
                 (setq entry (concat entry 
-                                   (org-collect-code-todos--make-planning-line scheduled deadline)
-                                   "\n")))
-              
+                                    (org-collect-code-todos--make-planning-line scheduled deadline)
+                                    "\n")))
+
               ;; Add the file link
               (setq entry (concat entry (format "[[%s][%s]]\n" file-path todo-text)))
               
@@ -724,7 +724,7 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
                    
                    ;; Save the buffer
                    (save-buffer))
-               (error nil))))))))))
+               (error nil)))))))))
 
 ;;; Setup hooks and advice
 
@@ -733,7 +733,7 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
   (when (get-buffer "*apheleia-ruff-log*")
     (with-current-buffer "*apheleia-ruff-log*"
       (let ((log-content (buffer-substring-no-properties (point-min) (point-max))))
-        (org-collect-code-todos--debug-log 
+        (org-collect-code-todos--debug-log
          "Apheleia ruff log content:\n%s" log-content)))))
 
 (defun org-collect-code-todos-set-read-only ()
@@ -768,8 +768,8 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
 
 ;; Add advice to capture apheleia errors
 (when (fboundp 'apheleia--run-formatter)
-  (advice-add 'apheleia--run-formatter :after 
-              (lambda (&rest _) 
+  (advice-add 'apheleia--run-formatter :after
+              (lambda (&rest _)
                 (run-with-timer 0.1 nil #'org-collect-code-todos--capture-apheleia-output))))
 
 (provide 'org-collect-code-todos)
