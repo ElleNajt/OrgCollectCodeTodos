@@ -422,24 +422,46 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
                                   (goto-char source-point)
                                   (org-collect-code-todos-toggle-state-at-point))))))))))))
 
-(defun org-collect-code-todos--update-org-entry-state (todo-id new-state)
-  "Update the state of the org entry with TODO-ID to NEW-STATE."
-  (when (file-exists-p org-collect-code-todos-file)
-    (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-      (org-mode)
-      (org-collect-code-todos--with-writable-buffer
-       (lambda ()
-         (save-excursion
-           (goto-char (point-min))
-           (when (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t)
-             (condition-case nil
-                 (progn
-                   (org-back-to-heading t)
-                   (let ((current-state (org-get-todo-state)))
-                     (when (and current-state
-                                (not (string= current-state new-state)))
-                       (org-todo new-state))))
-               (error nil)))))))))
+(defun org-collect-code-todos--get-heading-text-without-todo (heading)
+  "Extract the heading text without the TODO keyword."
+  (if (string-match "\\(?:TODO\\|DONE\\)\\s-+\\(.*\\)" heading)
+      (match-string 1 heading)
+    heading))
+
+(defun org-collect-code-todos--get-todo-state-from-heading (heading)
+  "Extract the TODO state from a heading."
+  (if (string-match "\\(TODO\\|DONE\\)" heading)
+      (match-string 1 heading)
+    nil))
+
+(defun org-collect-code-todos--get-id-from-properties ()
+  "Get the TODO_ID property from the current org entry."
+  (org-entry-get nil "TODO_ID"))
+
+(defun org-collect-code-todos--org-to-source-format (org-heading org-scheduled org-deadline comment-prefix indent)
+  "Convert org format to source code comment format.
+ORG-HEADING is the org heading with TODO state.
+ORG-SCHEDULED and ORG-DEADLINE are the scheduling timestamps.
+COMMENT-PREFIX is the comment character.
+INDENT is the indentation string."
+  (let* ((todo-state (or (org-collect-code-todos--get-todo-state-from-heading org-heading) "TODO"))
+         (todo-text (org-collect-code-todos--get-heading-text-without-todo org-heading))
+         (todo-id (org-collect-code-todos--get-id-from-properties))
+         (source-line (format "%s%s[%s] %s" indent comment-prefix todo-state todo-id todo-text))
+         (scheduling-lines ""))
+    
+    ;; Add scheduling information if present
+    (when org-scheduled
+      (setq scheduling-lines 
+            (concat scheduling-lines 
+                    (format "\n%s%s SCHEDULED: %s" indent comment-prefix org-scheduled))))
+    
+    (when org-deadline
+      (setq scheduling-lines 
+            (concat scheduling-lines 
+                    (format "\n%s%s DEADLINE: %s" indent comment-prefix org-deadline))))
+    
+    (concat source-line scheduling-lines)))
 
 
 ;; Removed function org-collect-code-todos--update-scheduling-comments
