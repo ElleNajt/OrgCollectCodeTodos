@@ -130,15 +130,19 @@ or nil if no TODO is found."
       (funcall fn)
     (let ((was-read-only buffer-read-only)
           (inhibit-read-only t))
+      (org-collect-code-todos--debug-log 
+       "Making buffer writable (was read-only: %s)" was-read-only)
       (when was-read-only
         (read-only-mode -1))
       (unwind-protect
           (progn
             (setq-local org-collect-code-todos-keep-writable t)
             (funcall fn))
-        (setq-local org-collect-code-todos-keep-writable nil)
-        (when was-read-only
-          (read-only-mode 1))))))
+        (progn
+          (setq-local org-collect-code-todos-keep-writable nil)
+          (when was-read-only
+            (org-collect-code-todos--debug-log "Restoring read-only mode")
+            (read-only-mode 1)))))))
 
 (defun org-collect-code-todos--get-archive-file ()
   "Get the archive file path for code TODOs."
@@ -151,7 +155,7 @@ or nil if no TODO is found."
   "Extract TODO properties from current heading.
 Returns a plist with :id, :path, :scheduled, and :deadline properties."
   (save-excursion
-    (condition-case nil
+    (condition-case err
         (progn
           ;; Only try to use org functions in org-mode buffers
           (unless (derived-mode-p 'org-mode)
@@ -163,8 +167,8 @@ Returns a plist with :id, :path, :scheduled, and :deadline properties."
                                    (save-excursion (outline-next-heading) (point))))
                  (todo-id nil)
                  (path nil)
-                 (scheduled (org-entry-get (point) "SCHEDULED"))
-                 (deadline (org-entry-get (point) "DEADLINE")))
+                 (scheduled nil)
+                 (deadline nil))
             
             ;; Extract file path from link
             (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
@@ -173,11 +177,17 @@ Returns a plist with :id, :path, :scheduled, and :deadline properties."
             ;; Extract TODO_ID property
             (setq todo-id (org-entry-get (point) "TODO_ID"))
             
+            ;; Only try to get scheduling info if we're in org-mode
+            (when (derived-mode-p 'org-mode)
+              (setq scheduled (org-entry-get (point) "SCHEDULED"))
+              (setq deadline (org-entry-get (point) "DEADLINE")))
+            
             (list :id todo-id :path path
                   :scheduled scheduled :deadline deadline)))
       (error
        (org-collect-code-todos--debug-log 
-        "Error extracting TODO properties at point %d" (point))
+        "Error extracting TODO properties at point %d: %s" 
+        (point) (error-message-string err))
        (list :id nil :path nil)))))
 
 ;;; Core functionality
@@ -431,15 +441,15 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
 
 (defun org-collect-code-todos--get-heading-text-without-todo (heading)
   "Extract the heading text without the TODO keyword."
-  (if (string-match "\\(?:TODO\\|DONE\\)\\s-+\\(.*\\)" heading)
+  (if (and heading (string-match "\\(?:TODO\\|DONE\\)\\s-+\\(.*\\)" heading))
       (match-string 1 heading)
     heading))
 
 (defun org-collect-code-todos--get-todo-state-from-heading (heading)
   "Extract the TODO state from a heading."
-  (if (string-match "\\(TODO\\|DONE\\)" heading)
+  (if (and heading (string-match "\\(TODO\\|DONE\\)" heading))
       (match-string 1 heading)
-    nil))
+    "TODO"))  ; Default to TODO if no state found
 
 (defun org-collect-code-todos--get-id-from-properties ()
   "Get the TODO_ID property from the current org entry."
@@ -458,6 +468,9 @@ TODO-ID is the ID of the TODO item."
          (todo-text (org-collect-code-todos--get-heading-text-without-todo org-heading))
          (source-line (format "%s%s %s[%s] %s" indent comment-prefix todo-state todo-id todo-text))
          (scheduling-lines ""))
+
+    (org-collect-code-todos--debug-log 
+     "Converting to source format: state=%s, text=%s" todo-state todo-text)
 
     ;; Add scheduling information if present
     (when org-scheduled
@@ -481,7 +494,7 @@ TODO-ID is the ID of the TODO item."
 
 (defun org-collect-code-todos-mark-source-todo-state ()
   "Update TODO/DONE state and scheduling in source file when changed in code-todos.org."
-  (when (and (eq major-mode 'org-mode)
+  (when (and (derived-mode-p 'org-mode)
              (org-collect-code-todos--is-todos-buffer-p))
     (org-collect-code-todos--debug-log
      "Checking for changes to sync to source file at point %d" (point))
@@ -490,10 +503,17 @@ TODO-ID is the ID of the TODO item."
         (let* ((props (org-collect-code-todos--extract-todo-properties))
                (todo-id (plist-get props :id))
                (path (plist-get props :path))
-               (org-heading (org-get-heading t t t t))
-               (current-state (org-get-todo-state))
-               (scheduled (when (derived-mode-p 'org-mode) (org-entry-get nil "SCHEDULED")))
-               (deadline (when (derived-mode-p 'org-mode) (org-entry-get nil "DEADLINE"))))
+               (org-heading nil)
+               (current-state nil)
+               (scheduled nil)
+               (deadline nil))
+          
+          ;; Only get org-specific properties if we're in org-mode
+          (when (derived-mode-p 'org-mode)
+            (setq org-heading (org-get-heading t t t t))
+            (setq current-state (org-get-todo-state))
+            (setq scheduled (org-entry-get nil "SCHEDULED"))
+            (setq deadline (org-entry-get nil "DEADLINE")))
 
           (org-collect-code-todos--debug-log
            "Extracted properties: id=%s, path=%s, state=%s, scheduled=%s, deadline=%s"
@@ -543,35 +563,46 @@ TODO-ID is the ID of the TODO item."
   "Safely execute org-archive-subtree with proper read-only handling."
   (if (not (org-collect-code-todos--is-todos-buffer-p))
       (apply orig-fun args)
+    (org-collect-code-todos--debug-log "Safe archive subtree called")
     (org-collect-code-todos--with-writable-buffer
      (lambda ()
        (let ((org-archive-location (or org-archive-location
                                        (concat (org-collect-code-todos--get-archive-file)
                                                "::* Archived Tasks"))))
-         (org-back-to-heading t)
-         (apply orig-fun args)
-         (save-buffer))))))
+         (when (derived-mode-p 'org-mode)
+           (org-back-to-heading t)
+           (apply orig-fun args)
+           (save-buffer)))))))
 
 (defun org-collect-code-todos-safe-toggle-tag (orig-fun &rest args)
   "Safely execute org-toggle-tag with proper read-only handling."
   (if (not (org-collect-code-todos--is-todos-buffer-p))
       (apply orig-fun args)
+    (org-collect-code-todos--debug-log "Safe toggle tag called")
     (org-collect-code-todos--with-writable-buffer
-     (lambda () (apply orig-fun args)))))
+     (lambda () 
+       (when (derived-mode-p 'org-mode)
+         (apply orig-fun args))))))
 
 (defun org-collect-code-todos-safe-schedule (orig-fun &rest args)
   "Safely execute org-schedule with proper read-only handling."
   (if (not (org-collect-code-todos--is-todos-buffer-p))
       (apply orig-fun args)
+    (org-collect-code-todos--debug-log "Safe schedule called")
     (org-collect-code-todos--with-writable-buffer
-     (lambda () (apply orig-fun args)))))
+     (lambda () 
+       (when (derived-mode-p 'org-mode)
+         (apply orig-fun args))))))
 
 (defun org-collect-code-todos-safe-deadline (orig-fun &rest args)
   "Safely execute org-deadline with proper read-only handling."
   (if (not (org-collect-code-todos--is-todos-buffer-p))
       (apply orig-fun args)
+    (org-collect-code-todos--debug-log "Safe deadline called")
     (org-collect-code-todos--with-writable-buffer
-     (lambda () (apply orig-fun args)))))
+     (lambda () 
+       (when (derived-mode-p 'org-mode)
+         (apply orig-fun args))))))
 
 
 ;;; Interactive functions for scheduling
@@ -656,7 +687,9 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
   "Set the code-todos buffer to read-only when opened."
   (when (and org-collect-code-todos-read-only
              (org-collect-code-todos--is-todos-buffer-p))
-    (read-only-mode 1)))
+    (org-collect-code-todos--debug-log "Setting buffer to read-only")
+    (read-only-mode 1)
+    (message "Code TODOs buffer is read-only. Use package commands to modify.")))
 
 (defun org-collect-code-todos-set-archive-location ()
   "Set up the archive location for the code-todos file."
@@ -679,22 +712,36 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
   ;; For property changes (in case TODO_ID is modified)
   (add-hook 'org-property-changed-functions
             (lambda (property value)
-              (when (string= property "TODO_ID")
+              (when (and (derived-mode-p 'org-mode)
+                         (string= property "TODO_ID"))
                 (org-collect-code-todos-mark-source-todo-state))))
   
   ;; For general changes to the org file
   (add-hook 'after-save-hook
             (lambda ()
-              (when (and (eq major-mode 'org-mode)
+              (when (and (derived-mode-p 'org-mode)
                          (org-collect-code-todos--is-todos-buffer-p))
                 (org-collect-code-todos--debug-log "Org file saved, checking for changes")
-                (org-map-entries
-                 (lambda ()
-                   (when (derived-mode-p 'org-mode)
-                     (let ((props (org-collect-code-todos--extract-todo-properties)))
-                       (when (and (plist-get props :id) (plist-get props :path))
-                         (org-collect-code-todos-mark-source-todo-state)))))
-                 nil nil)))))
+                (condition-case err
+                    (org-map-entries
+                     (lambda ()
+                       (when (derived-mode-p 'org-mode)
+                         (let ((props (org-collect-code-todos--extract-todo-properties)))
+                           (when (and (plist-get props :id) (plist-get props :path))
+                             (org-collect-code-todos-mark-source-todo-state)))))
+                     nil nil)
+                  (error
+                   (org-collect-code-todos--debug-log 
+                    "Error in after-save-hook: %s" (error-message-string err))))))))
+
+;; Add a safer version of org-element-at-point
+(defun org-collect-code-todos--safe-org-element-at-point (&rest args)
+  "Safely call org-element-at-point only in org-mode buffers."
+  (if (derived-mode-p 'org-mode)
+      (apply #'org-element-at-point args)
+    (org-collect-code-todos--debug-log 
+     "Prevented org-element-at-point in non-org buffer %s" (buffer-name))
+    nil))
 
 ;; Add hooks
 (add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
@@ -710,6 +757,7 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
      (buffer-name) (point) (backtrace-to-string))))
 
 (advice-add 'org-element-at-point :before #'org-collect-code-todos--debug-org-element-call)
+(advice-add 'org-element-at-point :around #'org-collect-code-todos--safe-org-element-at-point)
 
 ;; Call the setup function to set up all hooks
 (org-collect-code-todos-setup-hooks)
