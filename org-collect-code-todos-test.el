@@ -75,5 +75,77 @@
         (should (= (length (cadr second-todo)) 1))
         (should (string-match "SCHEDULED:" (nth 0 (cadr second-todo))))))))
 
+(ert-deftest org-collect-code-todos-test-ensure-org-file-exists ()
+  "Test ensuring the org file exists."
+  (let* ((temp-dir (make-temp-file "org-collect-code-todos-test" t))
+         (default-directory temp-dir)
+         (file-path (expand-file-name "code-todos.org" temp-dir)))
+    (unwind-protect
+        (progn
+          ;; Delete the file if it exists
+          (when (file-exists-p file-path)
+            (delete-file file-path))
+          
+          ;; Call the function
+          (let ((result (org-collect-code-todos--ensure-org-file-exists)))
+            ;; Check that the file exists
+            (should (file-exists-p file-path))
+            ;; Check that the function returns the file path
+            (should (equal result file-path))
+            ;; Check the file contents
+            (with-temp-buffer
+              (insert-file-contents file-path)
+              (should (string-match-p "^\\#\\+TITLE: Code TODOs" (buffer-string)))
+              (should (string-match-p "^\\* Code TODOs" (buffer-string))))))
+      ;; Clean up
+      (delete-directory temp-dir t))))
+
+(ert-deftest org-collect-code-todos-test-find-or-create-heading ()
+  "Test finding or creating a heading."
+  (let* ((temp-dir (make-temp-file "org-collect-code-todos-test" t))
+         (default-directory temp-dir)
+         (file-path (expand-file-name "test-headings.org" temp-dir)))
+    (unwind-protect
+        (progn
+          ;; Create a test file
+          (with-temp-file file-path
+            (insert "#+TITLE: Test Headings\n\n")
+            (insert "* Existing Heading\n")
+            (insert "** Existing Subheading\n"))
+          
+          ;; Test finding existing heading
+          (let ((point (org-collect-code-todos--find-or-create-heading 
+                        file-path '("Existing Heading"))))
+            (with-current-buffer (find-file-noselect file-path)
+              (goto-char point)
+              (beginning-of-line)
+              (should (looking-at "\\* Existing Heading$"))))
+          
+          ;; Test finding existing subheading
+          (let ((point (org-collect-code-todos--find-or-create-heading 
+                        file-path '("Existing Heading" "Existing Subheading"))))
+            (with-current-buffer (find-file-noselect file-path)
+              (goto-char point)
+              (beginning-of-line)
+              (should (looking-at "\\*\\* Existing Subheading$"))))
+          
+          ;; Test creating new heading
+          (let ((point (org-collect-code-todos--find-or-create-heading 
+                        file-path '("New Heading"))))
+            (with-current-buffer (find-file-noselect file-path)
+              (goto-char point)
+              (beginning-of-line)
+              (should (looking-at "\\* New Heading$"))))
+          
+          ;; Test creating new subheading
+          (let ((point (org-collect-code-todos--find-or-create-heading 
+                        file-path '("Existing Heading" "New Subheading"))))
+            (with-current-buffer (find-file-noselect file-path)
+              (goto-char point)
+              (beginning-of-line)
+              (should (looking-at "\\*\\* New Subheading$")))))
+      ;; Clean up
+      (delete-directory temp-dir t))))
+
 (provide 'org-collect-code-todos-test)
 ;;; org-collect-code-todos-test.el ends here
