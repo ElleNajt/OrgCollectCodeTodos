@@ -110,17 +110,24 @@ Returns a plist with :id, :path, and :last-text properties."
                  (path nil)
                  (last-text nil))
             
+            (org-collect-code-todos--debug-log 
+             "Extracting properties from heading at pos %d, content length: %d" 
+             (point) (length heading-content))
+            
             ;; Extract file path from link
             (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
-              (setq path (match-string 1 heading-content)))
+              (setq path (match-string 1 heading-content))
+              (org-collect-code-todos--debug-log "Found path: %s" path))
             
             ;; Extract TODO_ID property
             (when (string-match ":TODO_ID:\\s-*\\([0-9a-f]+\\)" heading-content)
-              (setq todo-id (match-string 1 heading-content)))
+              (setq todo-id (match-string 1 heading-content))
+              (org-collect-code-todos--debug-log "Found TODO_ID: %s" todo-id))
             
             ;; Extract LAST property
             (when (string-match ":LAST:\\s-*\\(.*\\)" heading-content)
-              (setq last-text (match-string 1 heading-content)))
+              (setq last-text (match-string 1 heading-content))
+              (org-collect-code-todos--debug-log "Found LAST: %s" last-text))
             
             (list :id todo-id :path path :last-text last-text)))
       (error
@@ -256,54 +263,48 @@ Returns a plist with :id, :path, and :last-text properties."
     (goto-char (point-min))
     (let ((file-path-regexp (regexp-quote file-path))
           (archived-count 0)
-          (search-pos (point-min))
           (org-archive-location (concat (org-collect-code-todos--get-archive-file)
                                         "::* Deleted TODOs")))
       
-      ;; Use a safer search approach with position tracking
-      (while (and search-pos 
-                  (< search-pos (point-max))
-                  (setq search-pos (save-excursion
-                                     (goto-char search-pos)
-                                     (when (re-search-forward file-path-regexp nil t)
-                                       (point)))))
-        (save-excursion
-          (goto-char search-pos)
-          (condition-case err
-              (progn
-                (org-back-to-heading t)
-                (let* ((heading-pos (point))
-                       (props (org-collect-code-todos--extract-todo-properties))
-                       (todo-id (plist-get props :id))
-                       (path (plist-get props :path)))
+      ;; Simpler, more robust approach to finding and processing entries
+      (goto-char (point-min))
+      (while (re-search-forward file-path-regexp nil t)
+        (org-collect-code-todos--debug-log "Found file path match at position %d" (point))
+        (condition-case err
+            (progn
+              (org-back-to-heading t)
+              (let* ((heading-pos (point))
+                     (props (org-collect-code-todos--extract-todo-properties))
+                     (todo-id (plist-get props :id))
+                     (path (plist-get props :path)))
+                
+                (org-collect-code-todos--debug-log 
+                 "Checking heading at pos %d with ID %s, path %s" 
+                 heading-pos todo-id path)
+                
+                ;; If this entry references our file but its ID isn't in active-todo-ids, archive it
+                (when (and path 
+                           (string= path file-path)
+                           todo-id
+                           (not (member todo-id active-todo-ids)))
+                  (org-collect-code-todos--debug-log 
+                   "Archiving TODO with ID %s (not found in source)" todo-id)
                   
-                  ;; If this entry references our file but its ID isn't in active-todo-ids, archive it
-                  (when (and path 
-                             (string= path file-path)
-                             todo-id
-                             (not (member todo-id active-todo-ids)))
-                    (org-collect-code-todos--debug-log 
-                     "Archiving TODO with ID %s (not found in source)" todo-id)
-                    
-                    ;; Add a note about why it was archived
-                    (org-entry-put (point) "ARCHIVED_REASON" "Deleted from source code")
-                    
-                    ;; Archive the subtree
-                    (org-archive-subtree)
-                    (setq archived-count (1+ archived-count))
-                    
-                    ;; Update search position to before where the entry was
-                    (setq search-pos heading-pos))
+                  ;; Add a note about why it was archived
+                  (org-entry-put (point) "ARCHIVED_REASON" "Deleted from source code")
                   
-                  ;; If we didn't archive, move search position past this heading
-                  (unless (and todo-id (not (member todo-id active-todo-ids)))
-                    (org-end-of-subtree t t)
-                    (setq search-pos (point)))))
-            (error 
-             (org-collect-code-todos--debug-log 
-              "Error during TODO archiving: %s" (error-message-string err))
-             ;; On error, move forward to avoid getting stuck
-             (setq search-pos (+ search-pos 1))))))
+                  ;; Archive the subtree
+                  (org-archive-subtree)
+                  (setq archived-count (1+ archived-count)))
+                
+                ;; Always move past this subtree to avoid infinite loops
+                (org-end-of-subtree t t)))
+          (error 
+           (org-collect-code-todos--debug-log 
+            "Error during TODO archiving: %s at position %d" 
+            (error-message-string err) (point))
+           ;; On error, move forward a bit to avoid getting stuck
+           (forward-line 1))))
       
       (when (> archived-count 0)
         (message "Archived %d TODOs that no longer exist in %s" 
