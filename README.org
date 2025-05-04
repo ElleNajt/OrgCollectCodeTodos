@@ -1,6 +1,6 @@
 * org-collect-code-todos
 
-An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file. Tested with .py, .ts, .nix, .el, .c.
+An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file. Tested with .py, .ts, .nix, .el, .c, but should work with anything prog-mode, on comments that match (whitespace)(commentcharacter)(whitespace)TODO.
 
 This org mode file is kept read-only, except for toggling TODO/DONE and archiving, to keep synchronization simple but keep compatibility with standard org-mode functionality.
 
@@ -33,8 +33,12 @@ Written *almost* entirely by Claude 3.7 using aider.
 ;; Set the key for toggling TODO state in source code and jumping to the org entry
 (map! :map prog-mode-map
       :n "C-c C-t" #'org-collect-code-todos-toggle-state-at-point
+      :n "C-c C-s" #'org-collect-code-todos-schedule-at-point
+      :n "C-c C-d" #'org-collect-code-todos-set-deadline-at-point
       :n "C-c C-j" #'org-collect-code-todos-jump-to-org-entry)
 #+end_src
+
+#+RESULTS:
 
 
 ** Usage

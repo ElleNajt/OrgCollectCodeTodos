@@ -509,16 +509,15 @@ SCHEDULED and DEADLINE are the timestamp strings or nil."
       
       ;; Add new scheduling comments if needed
       (goto-char line-start)
-      (when deadline
+      (when (or scheduled deadline)
         (forward-line 1)
-        (let ((indent (make-string (current-indentation) ? )))
-          (insert indent comment-start " DEADLINE: " deadline "\n")))
-      
-      (goto-char line-start)
-      (when scheduled
-        (forward-line 1)
-        (let ((indent (make-string (current-indentation) ? )))
-          (insert indent comment-start " SCHEDULED: " scheduled "\n"))))))
+        (let ((indent (make-string (current-indentation) ? ))
+              (planning-line ""))
+          (when scheduled
+            (setq planning-line (concat planning-line "SCHEDULED: " scheduled " ")))
+          (when deadline
+            (setq planning-line (concat planning-line "DEADLINE: " deadline)))
+          (insert indent comment-start " " (string-trim-right planning-line) "\n"))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.
