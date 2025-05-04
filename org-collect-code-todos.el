@@ -267,7 +267,8 @@ TODO-INFO is (todo-line following-lines)."
                 (insert "\n")
                 (insert "** " heading)
                 (org-set-property "TODO_ID" todo-id)
-                (org-set-property "FILE" file-path)
+                ;; Use org-entry-properties-from-alist instead of org-set-property for FILE
+                (org-entry-put (point) "FILE_PATH" file-path)
                 (when scheduled
                   (org-schedule nil scheduled))
                 (when deadline
