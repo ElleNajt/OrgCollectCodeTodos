@@ -416,66 +416,37 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
                        (org-todo new-state))))
                (error nil)))))))))
 
-(defun org-collect-code-todos--handle-planning-info (todo-id scheduled deadline &optional in-source-file)
-  "Update planning information for TODO with TODO-ID.
-SCHEDULED and DEADLINE are timestamp strings or nil.
-When IN-SOURCE-FILE is non-nil, update in source file, otherwise in org file."
-  (if in-source-file
-      ;; Update in source file
-      (let ((comment-prefix (concat (string-trim comment-start) " ")))
-        (org-collect-code-todos--update-scheduling-comments 
-         (string-trim comment-start) todo-id scheduled deadline))
-    ;; Update in org file
-    (when (file-exists-p org-collect-code-todos-file)
-      (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-        (org-mode)
-        (org-collect-code-todos--with-writable-buffer
-         (lambda ()
-           (save-excursion
-             (goto-char (point-min))
-             (when (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t)
-               (condition-case nil
-                   (progn
-                     (org-back-to-heading t)
-                     
-                     ;; Handle scheduling changes
-                     (if scheduled
-                         (org-schedule nil scheduled)
-                       (when (org-entry-get (point) "SCHEDULED")
-                         (org-schedule '(4)))) ;; C-u prefix to remove
-                     
-                     ;; Handle deadline changes
-                     (if deadline
-                         (org-deadline nil deadline)
-                       (when (org-entry-get (point) "DEADLINE")
-                         (org-deadline '(4)))) ;; C-u prefix to remove
-                     
-                     ;; Save the buffer
-                     (save-buffer))
-                 (error nil))))))))))
 
 (defun org-collect-code-todos--update-scheduling-comments (comment-start todo-id scheduled deadline)
   "Update or add scheduling comments for TODO with TODO-ID.
 Uses COMMENT-START as the comment character.
-SCHEDULED and DEADLINE are the timestamp strings or nil."
+SCHEDULED and DEADLINE are the timestamp strings from the org file."
   (save-excursion
-    (let ((indent (make-string (current-indentation) ? )))
-      ;; First, delete all scheduling lines after this TODO
-      (forward-line 1)
-      (let ((start-pos (point)))
-        (while (and (< (point) (point-max))
-                    (looking-at (format "^\\s-*[%s]+\\s-*.*\\(SCHEDULED:\\|DEADLINE:\\)"
-                                        (regexp-quote (string-trim comment-start)))))
-          (forward-line 1))
-        (delete-region start-pos (point)))
-      
-      ;; Add scheduling comments if needed
-      (when (or scheduled deadline)
-        (goto-char (line-beginning-position))
-        (end-of-line)
-        (let ((planning-line (org-collect-code-todos--make-planning-line scheduled deadline))
-              (comment-prefix (concat (string-trim comment-start) " ")))
-          (insert "\n" indent comment-prefix planning-line))))))
+    ;; Find the TODO line
+    (goto-char (point-min))
+    (when (re-search-forward (format "\\(TODO\\|DONE\\)\\[%s\\]" (regexp-quote todo-id)) nil t)
+      (let ((indent (make-string (current-indentation) ? )))
+        ;; First, delete all scheduling lines after this TODO
+        (forward-line 1)
+        (let ((start-pos (point)))
+          (while (and (< (point) (point-max))
+                      (looking-at (format "^\\s-*[%s]+\\s-*.*\\(SCHEDULED:\\|DEADLINE:\\)"
+                                          (regexp-quote (string-trim comment-start)))))
+            (forward-line 1))
+          (delete-region start-pos (point)))
+        
+        ;; Add scheduling comments if needed
+        (when (or scheduled deadline)
+          (goto-char (line-beginning-position))
+          (end-of-line)
+          (let ((comment-prefix (concat (string-trim comment-start) " ")))
+            ;; Add SCHEDULED line if present
+            (when scheduled
+              (insert "\n" indent comment-prefix "SCHEDULED: " scheduled))
+            
+            ;; Add DEADLINE line if present
+            (when deadline
+              (insert "\n" indent comment-prefix "DEADLINE: " deadline))))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text)
   "Update TODO state in source file by searching for its ID.
@@ -511,7 +482,7 @@ ORG-TODO-TEXT is the text of the TODO item."
      nil)))
 
 (defun org-collect-code-todos-mark-source-todo-state ()
-  "Update TODO/DONE state in source file when changed in code-todos.org."
+  "Update TODO/DONE state and scheduling in source file when changed in code-todos.org."
   (when (and (eq major-mode 'org-mode)
              (org-collect-code-todos--is-todos-buffer-p)
              (or (and (boundp 'org-state) (member org-state '("TODO" "DONE")))
@@ -531,26 +502,17 @@ ORG-TODO-TEXT is the text of the TODO item."
                (deadline (org-entry-get nil "DEADLINE")))
           
           (when (and todo-id path)
+            ;; Update the TODO state in source file
+            (when (boundp 'org-state)
+              (org-collect-code-todos-update-source-file-by-id
+               path todo-id org-state org-todo-text))
+            
             ;; Update scheduling in source file
             (when (or scheduled deadline)
               (with-current-buffer (find-file-noselect path)
-                (save-buffer) ;; Save any changes first
-                (org-collect-code-todos--handle-planning-info todo-id scheduled deadline t)
-                (save-buffer)))
-            
-            ;; Update the TODO state and text
-            (let ((update-result (org-collect-code-todos-update-source-file-by-id
-                                  path todo-id
-                                  (if (boundp 'org-state) org-state current-state)
-                                  org-todo-text)))
-              
-              ;; If update-result is non-nil, we need to update the TODO_ID property
-              (when update-result
-                (org-collect-code-todos--with-writable-buffer
-                 (lambda ()
-                   (let ((new-uuid (car update-result)))
-                     (org-entry-put (point) "TODO_ID" new-uuid)
-                     (save-buffer))))))))
+                (org-collect-code-todos--update-scheduling-comments
+                 (string-trim comment-start) todo-id scheduled deadline)
+                (save-buffer)))))
       (error (message "Error updating source TODO state: %s" (error-message-string error-obj))))))
 
 ;;; Safe wrappers for org functions
@@ -601,40 +563,61 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
       (when todo
         (let* ((todo-id (or (plist-get todo :id) (org-collect-code-todos--generate-id)))
                (todo-state (plist-get todo :state))
-               (existing-scheduled (plist-get todo :scheduled))
-               (existing-deadline (plist-get todo :deadline))
-               (date (org-read-date nil t))
-               (date-str (format-time-string "%Y-%m-%d %a" date))
-               (new-timestamp (format "<%s>" date-str))
-               (new-scheduled (if (eq planning-type 'scheduled) new-timestamp existing-scheduled))
-               (new-deadline (if (eq planning-type 'deadline) new-timestamp existing-deadline))
-               (current-value (if (eq planning-type 'scheduled) existing-scheduled existing-deadline)))
+               (todo-text (plist-get todo :text))
+               (source-buffer (current-buffer))
+               (source-point (point)))
           
-          ;; If no ID exists, update the source line
+          ;; If no ID exists, update the source line with ID
           (unless (plist-get todo :id)
             (save-excursion
               (beginning-of-line)
               (when (re-search-forward (concat (regexp-quote todo-state) "\\s-+")
                                        (line-end-position) t)
-                (replace-match (concat todo-state "[" todo-id "] ")))))
+                (replace-match (concat todo-state "[" todo-id "] ")))
+              (save-buffer)))
           
-          ;; Check if the date is actually changing
-          (if (and current-value (string= current-value new-timestamp))
-              (message "%s already set to %s"
-                       (capitalize (symbol-name planning-type)) date-str)
-            
-            ;; Update planning in both source and org files
-            (org-collect-code-todos--handle-planning-info todo-id new-scheduled new-deadline t)
-            (org-collect-code-todos--handle-planning-info todo-id new-scheduled new-deadline nil)
-            
-            ;; Save the buffer
-            (save-buffer)
-            
-            ;; Capture apheleia output after save
-            (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
-            
-            (message "%s set for %s"
-                     (capitalize (symbol-name planning-type)) date-str)))))))
+          ;; Find or create the org entry
+          (let ((entry (org-collect-code-todos--find-todo-by-id todo-id)))
+            (if entry
+                ;; Jump to the org entry (invisibly)
+                (with-current-buffer (car entry)
+                  (save-window-excursion
+                    (goto-char (cdr entry))
+                    
+                    ;; Set the planning info in the org file
+                    (cond
+                     ((eq planning-type 'scheduled)
+                      (org-schedule nil))
+                     ((eq planning-type 'deadline)
+                      (org-deadline nil)))
+                    
+                    ;; Save the org buffer
+                    (save-buffer)
+                    
+                    ;; Extract the new planning info
+                    (let* ((props (org-collect-code-todos--extract-todo-properties))
+                           (scheduled (plist-get props :scheduled))
+                           (deadline (plist-get props :deadline)))
+                      
+                      ;; Go back to source buffer and update comments
+                      (with-current-buffer source-buffer
+                        (save-excursion
+                          (goto-char source-point)
+                          (org-collect-code-todos--update-scheduling-comments
+                           (string-trim comment-start) todo-id scheduled deadline)
+                          (save-buffer))))))
+              
+              ;; If entry not found, create it first
+              (message "Creating org entry for this TODO first...")
+              (org-collect-code-todos-collect-and-add)
+              ;; Then try again
+              (run-with-timer 0.2 nil 
+                              (lambda ()
+                                (with-current-buffer source-buffer
+                                  (goto-char source-point)
+                                  (org-collect-code-todos-set-planning-at-point planning-type))))))
+          
+          (message "%s timestamp added" (capitalize (symbol-name planning-type))))))))
 
 (defun org-collect-code-todos-schedule-at-point ()
   "Add or modify a SCHEDULED timestamp for the TODO at point."
