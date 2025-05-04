@@ -60,7 +60,9 @@ This is used during operations like changing TODO states or archiving.")
   "Write a debug log message to .aider-debug-logs file."
   (let ((log-file (expand-file-name ".aider-debug-logs")))
     (with-temp-buffer
-      (insert (format "[%s] " (format-time-string "%Y-%m-%d %H:%M:%S")))
+      (insert (format "[%s] [%s] " 
+                      (format-time-string "%Y-%m-%d %H:%M:%S")
+                      (or (buffer-file-name) "no-file")))
       (insert (apply #'format message args))
       (insert "\n")
       (append-to-file (point-min) (point-max) log-file))))
@@ -154,41 +156,52 @@ Returns a plist with :id, :path, and :last-text properties."
   (let ((file-path (buffer-file-name))
         (comment-start (string-trim comment-start))
         todos)
+    
+    (org-collect-code-todos--debug-log 
+     "Starting TODO collection for file: %s with comment-start: '%s'" 
+     file-path comment-start)
 
     ;; Find TODOs and DONEs in the current buffer
     (save-excursion
       (goto-char (point-min))
-      (while (re-search-forward
-              (format "^\\s-*[%s]*\\s-*\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
-                      (regexp-quote comment-start))
-              nil t)
-        (let* ((existing-id (match-string-no-properties 2))
-               (todo-state (match-string-no-properties 1))
-               (todo-text (string-trim (match-string-no-properties 3)))
-               (file-name (replace-regexp-in-string "[.-]" "_"
-                                                    (file-name-nondirectory file-path)))
-               (id (or existing-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
-               (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
-               (entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
-                              org-state
-                              todo-text
-                              file-name
-                              id
-                              todo-text
-                              file-path
-                              todo-text)))
+      (let ((todo-regex (format "^\\s-*[%s]*\\s-*\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
+                                (regexp-quote comment-start))))
+        (org-collect-code-todos--debug-log "Using regex: %s" todo-regex)
+        (while (re-search-forward todo-regex nil t)
+          (let* ((existing-id (match-string-no-properties 2))
+                 (todo-state (match-string-no-properties 1))
+                 (todo-text (string-trim (match-string-no-properties 3)))
+                 (file-name (replace-regexp-in-string "[.-]" "_"
+                                                      (file-name-nondirectory file-path)))
+                 (id (or existing-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
+                 (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
+                 (entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n[[%s][%s]]\n"
+                                org-state
+                                todo-text
+                                file-name
+                                id
+                                todo-text
+                                file-path
+                                todo-text)))
+            
+            (org-collect-code-todos--debug-log 
+             "Found TODO: state=%s, id=%s, text='%s'" 
+             todo-state (or existing-id "new") todo-text)
 
-          ;; If no ID exists, add one to the source file
-          (unless existing-id
-            (let ((original-prefix (buffer-substring-no-properties
-                                    (line-beginning-position)
-                                    (match-beginning 2)))
-                  (todo-with-id (format "%s[%s] %s"
-                                        (if (string-match-p "^DONE" todo-state) "DONE" "TODO")
-                                        id todo-text)))
-              (replace-match (concat original-prefix todo-with-id))))
+            ;; If no ID exists, add one to the source file
+            (unless existing-id
+              (let ((original-prefix (buffer-substring-no-properties
+                                      (line-beginning-position)
+                                      (match-beginning 1)))
+                    (todo-with-id (format "%s[%s] %s"
+                                          (if (string-match-p "^DONE" todo-state) "DONE" "TODO")
+                                          id todo-text)))
+                (org-collect-code-todos--debug-log 
+                 "Adding ID to TODO: prefix='%s', new-text='%s'" 
+                 original-prefix todo-with-id)
+                (replace-match (concat original-prefix todo-with-id))))
 
-          (push entry todos))))
+            (push entry todos)))))
 
     ;; Process collected TODOs
     (with-current-buffer (find-file-noselect org-collect-code-todos-file)
@@ -248,6 +261,9 @@ Returns a plist with :id, :path, and :last-text properties."
 
                  ;; Add new entry if needed
                  (unless existing-entry-found
+                   (org-collect-code-todos--debug-log 
+                    "Adding new TODO entry with ID %s: %s" 
+                    todo-id (substring todo 0 (min 50 (length todo))))
                    (goto-char (point-max))
                    (insert "\n" todo)))))
 
@@ -351,10 +367,12 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
   "Toggle the TODO/DONE state of the TODO comment at point."
   (interactive)
   (when (derived-mode-p 'prog-mode)
+    (org-collect-code-todos--debug-log "Toggling TODO state at point in %s" (buffer-file-name))
     (save-excursion
       (beginning-of-line)
       (let ((line-start (point))
             (comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
+        (org-collect-code-todos--debug-log "Using comment regex: %s" comment-start-regex)
         (when (looking-at comment-start-regex)
           (let ((todo-regex "\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
             (when (re-search-forward todo-regex (line-end-position) t)
@@ -368,6 +386,9 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
                   (setq todo-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
                 
                 ;; Replace the TODO/DONE state
+                (org-collect-code-todos--debug-log 
+                 "Toggling state from %s to %s for TODO[%s]" 
+                 current-state new-state todo-id)
                 (replace-match (concat new-state "[" todo-id "] " todo-text)
                                t t nil 0)
                 
@@ -381,22 +402,32 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
 (defun org-collect-code-todos--update-org-entry-state (todo-id new-state)
   "Update the state of the org entry with TODO-ID to NEW-STATE."
   (when (file-exists-p org-collect-code-todos-file)
+    (org-collect-code-todos--debug-log 
+     "Updating org entry state for TODO[%s] to %s" todo-id new-state)
     (with-current-buffer (find-file-noselect org-collect-code-todos-file)
       (org-mode)
       (org-collect-code-todos--with-writable-buffer
        (lambda ()
          (save-excursion
            (goto-char (point-min))
-           (when (re-search-forward (format ":TODO_ID:\\s-*%s" 
-                                            (regexp-quote todo-id)) nil t)
-             (condition-case nil
-                 (progn
-                   (org-back-to-heading t)
-                   (let ((current-state (org-get-todo-state)))
-                     (when (and current-state
-                                (not (string= current-state new-state)))
-                       (org-todo new-state))))
-               (error nil)))))))))
+           (let ((search-pattern (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id))))
+             (org-collect-code-todos--debug-log "Searching for pattern: %s" search-pattern)
+             (when (re-search-forward search-pattern nil t)
+               (condition-case err
+                   (progn
+                     (org-back-to-heading t)
+                     (let ((current-state (org-get-todo-state)))
+                       (org-collect-code-todos--debug-log 
+                        "Found entry with current state: %s" current-state)
+                       (when (and current-state
+                                  (not (string= current-state new-state)))
+                         (org-collect-code-todos--debug-log 
+                          "Changing state from %s to %s" current-state new-state)
+                         (org-todo new-state))))
+                 (error 
+                  (org-collect-code-todos--debug-log 
+                   "Error updating org entry state: %s" (error-message-string err))
+                  nil))))))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.
@@ -405,6 +436,9 @@ TODO-ID is the unique identifier for the TODO.
 ORG-STATE is the new state (TODO or DONE).
 ORG-TODO-TEXT is the text of the TODO item.
 LAST-TEXT is the previous text of the TODO item."
+  (org-collect-code-todos--debug-log 
+   "Updating source file %s for TODO[%s] to state %s" 
+   path todo-id org-state)
   (with-current-buffer (find-file-noselect path)
     (let ((text-changed (not (string= org-todo-text last-text)))
           (found nil)
@@ -412,20 +446,30 @@ LAST-TEXT is the previous text of the TODO item."
       
       ;; Search for the TODO[c40ac004] with the specific ID
       (goto-char (point-min))
-      (while (and (not found)
-                  (re-search-forward (format "\\(^\\|[ \t]\\)\\s-*\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
-                                             (regexp-quote todo-id))
-                                     nil t))
-        (setq found t)
-        (let ((leading-space (match-string 1))
-              (current-text (match-string 3)))
-          (if text-changed
-              ;; Text changed - generate new UUID and update everything
-              (let ((new-uuid (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
-                (replace-match (concat leading-space org-state "[" new-uuid "] " org-todo-text))
-                (setq result (cons new-uuid org-todo-text)))
-            ;; Just update the state
-            (replace-match (concat leading-space org-state "[" todo-id "] " current-text)))))
+      (let ((search-pattern (format "\\(^\\|[ \t]\\)\\s-*\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
+                                   (regexp-quote todo-id))))
+        (org-collect-code-todos--debug-log "Searching with pattern: %s" search-pattern)
+        (while (and (not found)
+                    (re-search-forward search-pattern nil t))
+          (setq found t)
+          (let ((leading-space (match-string 1))
+                (current-state (match-string 2))
+                (current-text (match-string 3)))
+            (org-collect-code-todos--debug-log 
+             "Found TODO[%s] with state %s and text '%s'" 
+             todo-id current-state current-text)
+            (if text-changed
+                ;; Text changed - generate new UUID and update everything
+                (let ((new-uuid (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
+                  (org-collect-code-todos--debug-log 
+                   "Text changed from '%s' to '%s', generating new UUID: %s" 
+                   current-text org-todo-text new-uuid)
+                  (replace-match (concat leading-space org-state "[" new-uuid "] " org-todo-text))
+                  (setq result (cons new-uuid org-todo-text)))
+              ;; Just update the state
+              (org-collect-code-todos--debug-log 
+               "Updating state from %s to %s" current-state org-state)
+              (replace-match (concat leading-space org-state "[" todo-id "] " current-text))))))
       
       ;; Save the buffer if we made changes
       (when found
@@ -438,6 +482,9 @@ LAST-TEXT is the previous text of the TODO item."
   (when (and (eq major-mode 'org-mode)
              (org-collect-code-todos--is-todos-buffer-p)
              (member org-state '("TODO" "DONE")))
+    (org-collect-code-todos--debug-log 
+     "Org TODO state changed to %s in %s" 
+     org-state (buffer-file-name))
     (condition-case err
         (let* ((props (org-collect-code-todos--extract-todo-properties))
                (todo-id (plist-get props :id))
