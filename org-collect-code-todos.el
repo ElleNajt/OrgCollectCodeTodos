@@ -420,7 +420,7 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
                               (lambda ()
                                 (with-current-buffer source-buffer
                                   (goto-char source-point)
-                                  (org-collect-code-todos-toggle-state-at-point))))))))))))
+                                  (org-collect-code-todos-toggle-state-at-point)))))))))))
 
 (defun org-collect-code-todos--get-heading-text-without-todo (heading)
   "Extract the heading text without the TODO keyword."
@@ -449,18 +449,18 @@ INDENT is the indentation string."
          (todo-id (org-collect-code-todos--get-id-from-properties))
          (source-line (format "%s%s[%s] %s" indent comment-prefix todo-state todo-id todo-text))
          (scheduling-lines ""))
-    
+
     ;; Add scheduling information if present
     (when org-scheduled
-      (setq scheduling-lines 
-            (concat scheduling-lines 
+      (setq scheduling-lines
+            (concat scheduling-lines
                     (format "\n%s%s SCHEDULED: %s" indent comment-prefix org-scheduled))))
-    
+
     (when org-deadline
-      (setq scheduling-lines 
-            (concat scheduling-lines 
+      (setq scheduling-lines
+            (concat scheduling-lines
                     (format "\n%s%s DEADLINE: %s" indent comment-prefix org-deadline))))
-    
+
     (concat source-line scheduling-lines)))
 
 
@@ -489,29 +489,29 @@ INDENT is the indentation string."
                (current-state (org-get-todo-state))
                (scheduled (org-entry-get nil "SCHEDULED"))
                (deadline (org-entry-get nil "DEADLINE")))
-          
+
           (org-collect-code-todos--debug-log
            "Extracted properties: id=%s, path=%s, scheduled=%s, deadline=%s"
            todo-id path scheduled deadline)
-          
+
           (when (and todo-id path)
             (with-current-buffer (find-file-noselect path)
               ;; Find the TODO line
               (goto-char (point-min))
-              (when (re-search-forward (format "\\(TODO\\|DONE\\)\\[%s\\]" 
+              (when (re-search-forward (format "\\(TODO\\|DONE\\)\\[%s\\]"
                                                (regexp-quote todo-id)) nil t)
                 (let* ((line-start (line-beginning-position))
                        (indent (make-string (current-indentation) ? ))
                        (comment-prefix (concat (string-trim comment-start) " "))
                        ;; Generate the new source format from org data
-                       (new-source-format 
-                        (org-collect-code-todos--org-to-source-format 
+                       (new-source-format
+                        (org-collect-code-todos--org-to-source-format
                          org-heading scheduled deadline comment-prefix indent)))
-                  
+
                   (org-collect-code-todos--debug-log
-                   "Updating source TODO[%s] with new format: %s" 
+                   "Updating source TODO[%s] with new format: %s"
                    todo-id new-source-format)
-                  
+
                   ;; Replace the entire TODO block (including scheduling)
                   (beginning-of-line)
                   (let ((start-pos (point)))
@@ -521,14 +521,14 @@ INDENT is the indentation string."
                                 (looking-at (format "^\\s-*%s\\s-*\\(SCHEDULED:\\|DEADLINE:\\)"
                                                     (regexp-quote (string-trim comment-start)))))
                       (forward-line 1))
-                    
+
                     ;; Replace with new format
                     (delete-region start-pos (point))
                     (goto-char start-pos)
                     (insert new-source-format))
-                  
+
                   (save-buffer))))))
-      (error 
+      (error
        (org-collect-code-todos--debug-log
         "Error updating source TODO: %s" (error-message-string error-obj))
        (message "Error updating source TODO: %s" (error-message-string error-obj))))))
@@ -584,10 +584,10 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
                (todo-text (plist-get todo :text))
                (source-buffer (current-buffer))
                (source-point (point)))
-          
+
           (org-collect-code-todos--debug-log
            "Setting %s for TODO[%s]" planning-type (or todo-id "new"))
-          
+
           ;; If no ID exists, update the source line with ID
           (unless (plist-get todo :id)
             (save-excursion
@@ -596,7 +596,7 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
                                        (line-end-position) t)
                 (replace-match (concat todo-state "[" todo-id "] ")))
               (save-buffer)))
-          
+
           ;; Find or create the org entry
           (let ((entry (org-collect-code-todos--find-todo-by-id todo-id)))
             (if entry
@@ -604,27 +604,27 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
                 (with-current-buffer (car entry)
                   (save-window-excursion
                     (goto-char (cdr entry))
-                    
+
                     ;; Set the planning info in the org file
                     (cond
                      ((eq planning-type 'scheduled)
                       (org-schedule nil))
                      ((eq planning-type 'deadline)
                       (org-deadline nil)))
-                    
+
                     ;; Save the org buffer
                     (save-buffer)))
-              
+
               ;; If entry not found, create it first
               (message "Creating org entry for this TODO first...")
               (org-collect-code-todos-collect-and-add)
               ;; Then try again
-              (run-with-timer 0.2 nil 
+              (run-with-timer 0.2 nil
                               (lambda ()
                                 (with-current-buffer source-buffer
                                   (goto-char source-point)
                                   (org-collect-code-todos-set-planning-at-point planning-type))))))
-          
+
           (message "%s timestamp added" (capitalize (symbol-name planning-type))))))))
 
 (defun org-collect-code-todos-schedule-at-point ()
