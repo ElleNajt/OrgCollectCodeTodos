@@ -953,18 +953,43 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
                (condition-case error-obj
                    (progn
                      (org-back-to-heading t)
+                     (org-collect-code-todos--debug-log 
+                      "Found heading for TODO[%s] at position %d" todo-id (point))
                      
-                     ;; Use org's built-in functions to handle scheduling properly
-                     (when scheduled
-                       (org-schedule nil scheduled))
-                     (when deadline
-                       (org-deadline nil deadline))
+                     ;; Get current values for comparison
+                     (let ((current-scheduled (org-entry-get (point) "SCHEDULED"))
+                           (current-deadline (org-entry-get (point) "DEADLINE")))
+                       
+                       (org-collect-code-todos--debug-log 
+                        "Current values: SCHEDULED=%s, DEADLINE=%s" 
+                        (or current-scheduled "nil") (or current-deadline "nil"))
+                       
+                       ;; Handle scheduling changes
+                       (if scheduled
+                           (progn
+                             (org-collect-code-todos--debug-log 
+                              "Setting SCHEDULED to %s" scheduled)
+                             (org-schedule nil scheduled))
+                         (when current-scheduled
+                           (org-collect-code-todos--debug-log "Removing SCHEDULED")
+                           (org-schedule '(4)))) ;; C-u prefix to remove
+                       
+                       ;; Handle deadline changes
+                       (if deadline
+                           (progn
+                             (org-collect-code-todos--debug-log 
+                              "Setting DEADLINE to %s" deadline)
+                             (org-deadline nil deadline))
+                         (when current-deadline
+                           (org-collect-code-todos--debug-log "Removing DEADLINE")
+                           (org-deadline '(4))))) ;; C-u prefix to remove
                      
-                     ;; If we need to remove scheduling/deadline
-                     (when (and (not scheduled) (org-get-scheduled-time (point)))
-                       (org-schedule '(4))) ;; C-u prefix to remove
-                     (when (and (not deadline) (org-get-deadline-time (point)))
-                       (org-deadline '(4))) ;; C-u prefix to remove
+                     ;; Verify the changes were applied
+                     (let ((new-scheduled (org-entry-get (point) "SCHEDULED"))
+                           (new-deadline (org-entry-get (point) "DEADLINE")))
+                       (org-collect-code-todos--debug-log 
+                        "After update: SCHEDULED=%s, DEADLINE=%s" 
+                        (or new-scheduled "nil") (or new-deadline "nil")))
                      
                      ;; Save the buffer
                      (save-buffer))
