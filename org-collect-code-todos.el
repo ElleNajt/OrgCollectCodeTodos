@@ -641,23 +641,23 @@ LAST-TEXT is the previous text of the TODO item."
                   ;; Only save if we made changes or the buffer was already modified
                   (when (or modified-buffer (buffer-modified-p))
                     (save-buffer))))))
+
+          ;; Update the TODO state and text
+          (let ((update-result (org-collect-code-todos-update-source-file-by-id
+                                path todo-id
+                                (if (boundp 'org-state) org-state current-state)
+                                org-todo-text last-text)))
             
-            ;; Update the TODO state and text
-            (let ((update-result (org-collect-code-todos-update-source-file-by-id
-                                  path todo-id 
-                                  (if (boundp 'org-state) org-state current-state)
-                                  org-todo-text last-text)))
-              
-              ;; If update-result is non-nil, we need to update the TODO_ID property
-              (when update-result
-                (org-collect-code-todos--with-writable-buffer
-                 (lambda ()
-                   (let ((new-uuid (car update-result))
-                         (new-text (cdr update-result)))
-                     (org-entry-put (point) "TODO_ID" new-uuid)
-                     (org-entry-put (point) "LAST" new-text)
-                     (save-buffer))))))))
-      (error (message "Error updating source TODO state: %s" (error-message-string err))))))
+            ;; If update-result is non-nil, we need to update the TODO_ID property
+            (when update-result
+              (org-collect-code-todos--with-writable-buffer
+               (lambda ()
+                 (let ((new-uuid (car update-result))
+                       (new-text (cdr update-result)))
+                   (org-entry-put (point) "TODO_ID" new-uuid)
+                   (org-entry-put (point) "LAST" new-text)
+                   (save-buffer))))))))
+    (error (message "Error updating source TODO state: %s" (error-message-string err)))))
 
 ;;; Safe wrappers for org functions
 
