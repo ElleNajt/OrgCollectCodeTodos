@@ -447,15 +447,15 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
       (org-entry-get nil "TODO_ID")
     nil))
 
-(defun org-collect-code-todos--org-to-source-format (org-heading org-scheduled org-deadline comment-prefix indent)
+(defun org-collect-code-todos--org-to-source-format (org-heading org-scheduled org-deadline comment-prefix indent todo-id)
   "Convert org format to source code comment format.
 ORG-HEADING is the org heading with TODO state.
 ORG-SCHEDULED and ORG-DEADLINE are the scheduling timestamps.
 COMMENT-PREFIX is the comment character.
-INDENT is the indentation string."
+INDENT is the indentation string.
+TODO-ID is the ID of the TODO item."
   (let* ((todo-state (or (org-collect-code-todos--get-todo-state-from-heading org-heading) "TODO"))
          (todo-text (org-collect-code-todos--get-heading-text-without-todo org-heading))
-         (todo-id (org-collect-code-todos--get-id-from-properties))
          (source-line (format "%s%s %s[%s] %s" indent comment-prefix todo-state todo-id todo-text))
          (scheduling-lines ""))
 
@@ -510,7 +510,7 @@ INDENT is the indentation string."
                        ;; Generate the new source format from org data
                        (new-source-format
                         (org-collect-code-todos--org-to-source-format
-                         org-heading scheduled deadline comment-prefix indent)))
+                         org-heading scheduled deadline comment-prefix indent todo-id)))
 
                   (org-collect-code-todos--debug-log
                    "Updating source TODO[%s] with new format: %s"
