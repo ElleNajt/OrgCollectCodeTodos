@@ -99,7 +99,7 @@ This is used during operations like changing TODO states or archiving.")
   "Extract TODO properties from current heading.
 Returns a plist with :id, :path, :last-text, :scheduled, and :deadline properties."
   (save-excursion
-    (condition-case err
+    (condition-case error-obj
         (progn
           (org-back-to-heading t)
           (let* ((next-heading-pos (save-excursion
@@ -148,7 +148,7 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
       (error
        (org-collect-code-todos--debug-log 
         "Error extracting TODO properties: %s at point %d" 
-        (error-message-string err) (point))
+        (error-message-string error-obj) (point))
        (list :id nil :path nil :last-text nil)))))
 
 ;;; Core functionality
@@ -534,43 +534,48 @@ LAST-TEXT is the previous text of the TODO item."
   (org-collect-code-todos--debug-log 
    "Updating source file %s for TODO[%s] to state %s" 
    path todo-id org-state)
-  (with-current-buffer (find-file-noselect path)
-    (let ((text-changed (not (string= org-todo-text last-text)))
-          (found nil)
-          (result nil))
-      
-      ;; Search for the TODO[c40ac004] with the specific ID
-      (goto-char (point-min))
-      (let ((search-pattern (format "\\(^\\|[ \t]\\)\\s-*\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
-                                    (regexp-quote todo-id))))
-        (org-collect-code-todos--debug-log "Searching with pattern: %s" search-pattern)
-        (while (and (not found)
-                    (re-search-forward search-pattern nil t))
-          (setq found t)
-          (let ((leading-space (match-string 1))
-                (current-state (match-string 2))
-                (current-text (match-string 3)))
-            (org-collect-code-todos--debug-log 
-             "Found TODO[%s] with state %s and text '%s'" 
-             todo-id current-state current-text)
-            (if text-changed
-                ;; Text changed - generate new UUID and update everything
-                (let ((new-uuid (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
+  (condition-case error-obj
+      (with-current-buffer (find-file-noselect path)
+        (let ((text-changed (and last-text org-todo-text (not (string= org-todo-text last-text))))
+              (found nil)
+              (result nil))
+          
+          ;; Search for the TODO[c40ac004] with the specific ID
+          (goto-char (point-min))
+          (let ((search-pattern (format "\\(^\\|[ \t]\\)\\s-*\\(TODO\\|DONE\\)\\[%s\\][ \t]+\\(.*\\)"
+                                        (regexp-quote todo-id))))
+            (org-collect-code-todos--debug-log "Searching with pattern: %s" search-pattern)
+            (while (and (not found)
+                        (re-search-forward search-pattern nil t))
+              (setq found t)
+              (let ((leading-space (match-string 1))
+                    (current-state (match-string 2))
+                    (current-text (match-string 3)))
+                (org-collect-code-todos--debug-log 
+                 "Found TODO[%s] with state %s and text '%s'" 
+                 todo-id current-state current-text)
+                (if text-changed
+                    ;; Text changed - generate new UUID and update everything
+                    (let ((new-uuid (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
+                      (org-collect-code-todos--debug-log 
+                       "Text changed from '%s' to '%s', generating new UUID: %s" 
+                       current-text org-todo-text new-uuid)
+                      (replace-match (concat leading-space org-state "[" new-uuid "] " org-todo-text))
+                      (setq result (cons new-uuid org-todo-text)))
+                  ;; Just update the state
                   (org-collect-code-todos--debug-log 
-                   "Text changed from '%s' to '%s', generating new UUID: %s" 
-                   current-text org-todo-text new-uuid)
-                  (replace-match (concat leading-space org-state "[" new-uuid "] " org-todo-text))
-                  (setq result (cons new-uuid org-todo-text)))
-              ;; Just update the state
-              (org-collect-code-todos--debug-log 
-               "Updating state from %s to %s" current-state org-state)
-              (replace-match (concat leading-space org-state "[" todo-id "] " current-text))))))
-      
-      ;; Save the buffer if we made changes
-      (when found
-        (save-buffer))
-      
-      result)))
+                   "Updating state from %s to %s" current-state org-state)
+                  (replace-match (concat leading-space org-state "[" todo-id "] " current-text))))))
+          
+          ;; Save the buffer if we made changes
+          (when found
+            (save-buffer))
+          
+          result))
+    (error
+     (org-collect-code-todos--debug-log 
+      "Error updating source file: %s" (error-message-string error-obj))
+     nil)))
 
 (defun org-collect-code-todos-mark-source-todo-state ()
   "Update TODO/DONE state in source file when changed in code-todos.org."
@@ -583,7 +588,7 @@ LAST-TEXT is the previous text of the TODO item."
      "Org TODO state or scheduling changed to %s in %s" 
      (if (boundp 'org-state) org-state "scheduling only") 
      (buffer-file-name))
-    (condition-case err
+    (condition-case error-obj
         (let* ((props (org-collect-code-todos--extract-todo-properties))
                (todo-id (plist-get props :id))
                (path (plist-get props :path))
@@ -657,7 +662,7 @@ LAST-TEXT is the previous text of the TODO item."
                    (org-entry-put (point) "TODO_ID" new-uuid)
                    (org-entry-put (point) "LAST" new-text)
                    (save-buffer))))))))
-    (error (message "Error updating source TODO state: %s" (error-message-string err)))))
+      (error (message "Error updating source TODO state: %s" (error-message-string error-obj))))))
 
 ;;; Safe wrappers for org functions
 
@@ -824,7 +829,7 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
            (let ((search-pattern (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id))))
              (org-collect-code-todos--debug-log "Searching for pattern: %s" search-pattern)
              (when (re-search-forward search-pattern nil t)
-               (condition-case err
+               (condition-case error-obj
                    (progn
                      (org-back-to-heading t)
                      
@@ -844,7 +849,7 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
                      (save-buffer))
                  (error 
                   (org-collect-code-todos--debug-log 
-                   "Error updating org scheduling: %s" (error-message-string err))
+                   "Error updating org scheduling: %s" (error-message-string error-obj))
                   nil))))))))))
 
 ;;; Setup hooks and advice
