@@ -153,6 +153,10 @@ Returns a plist with :id, :path, :scheduled, and :deadline properties."
   (save-excursion
     (condition-case nil
         (progn
+          ;; Only try to use org functions in org-mode buffers
+          (unless (derived-mode-p 'org-mode)
+            (error "Not in an org buffer"))
+            
           (org-back-to-heading t)
           (let* ((heading-content (buffer-substring-no-properties 
                                    (line-beginning-position)
@@ -439,7 +443,9 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
 
 (defun org-collect-code-todos--get-id-from-properties ()
   "Get the TODO_ID property from the current org entry."
-  (org-entry-get nil "TODO_ID"))
+  (if (derived-mode-p 'org-mode)
+      (org-entry-get nil "TODO_ID")
+    nil))
 
 (defun org-collect-code-todos--org-to-source-format (org-heading org-scheduled org-deadline comment-prefix indent)
   "Convert org format to source code comment format.
@@ -486,8 +492,8 @@ INDENT is the indentation string."
                (path (plist-get props :path))
                (org-heading (org-get-heading t t t t))
                (current-state (org-get-todo-state))
-               (scheduled (org-entry-get nil "SCHEDULED"))
-               (deadline (org-entry-get nil "DEADLINE")))
+               (scheduled (when (derived-mode-p 'org-mode) (org-entry-get nil "SCHEDULED")))
+               (deadline (when (derived-mode-p 'org-mode) (org-entry-get nil "DEADLINE"))))
 
           (org-collect-code-todos--debug-log
            "Extracted properties: id=%s, path=%s, state=%s, scheduled=%s, deadline=%s"
@@ -684,15 +690,26 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
                 (org-collect-code-todos--debug-log "Org file saved, checking for changes")
                 (org-map-entries
                  (lambda ()
-                   (let ((props (org-collect-code-todos--extract-todo-properties)))
-                     (when (and (plist-get props :id) (plist-get props :path))
-                       (org-collect-code-todos-mark-source-todo-state))))
+                   (when (derived-mode-p 'org-mode)
+                     (let ((props (org-collect-code-todos--extract-todo-properties)))
+                       (when (and (plist-get props :id) (plist-get props :path))
+                         (org-collect-code-todos-mark-source-todo-state)))))
                  nil nil)))))
 
 ;; Add hooks
 (add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
+
+;; Add debug advice to track org-element-at-point calls
+(defun org-collect-code-todos--debug-org-element-call (&rest args)
+  "Debug when org-element-at-point is called."
+  (unless (derived-mode-p 'org-mode)
+    (org-collect-code-todos--debug-log 
+     "org-element-at-point called in non-org buffer %s at %d\nBacktrace: %s" 
+     (buffer-name) (point) (backtrace-to-string))))
+
+(advice-add 'org-element-at-point :before #'org-collect-code-todos--debug-org-element-call)
 
 ;; Call the setup function to set up all hooks
 (org-collect-code-todos-setup-hooks)
