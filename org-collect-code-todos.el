@@ -132,6 +132,16 @@ Returns a list of (todo-line following-lines) or nil if no TODO found."
         (org-collect-code-todos--debug "Following lines: %s" following-lines)
         (list todo-line following-lines)))))
 
+(defun org-collect-code-todos--create-todo-with-id (todo-text)
+  "Create a new TODO with TODO-TEXT and a generated ID.
+Returns the TODO line with ID."
+  (org-collect-code-todos--debug "Creating new TODO with text: %s" todo-text)
+  (let* ((id (org-collect-code-todos--generate-uuid))
+         (comment-prefix (org-collect-code-todos--get-comment-prefix))
+         (todo-line (format "%s TODO[%s] %s" comment-prefix id todo-text)))
+    (org-collect-code-todos--debug "Created TODO line: %s" todo-line)
+    todo-line))
+
 (defun org-collect-code-todos--collect-todos-in-buffer ()
   "Collect all TODOs in the current buffer.
 Returns a list of (todo-line following-lines) for each TODO found.
@@ -145,6 +155,7 @@ Only works in programming modes."
           (comment-prefix (org-collect-code-todos--get-comment-prefix))
           (case-fold-search nil))
       (save-excursion
+        ;; First, look for TODOs with IDs
         (goto-char (point-min))
         (while (re-search-forward (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]") nil t)
           (let* ((line-start (line-beginning-position))
@@ -164,6 +175,45 @@ Only works in programming modes."
             (let ((todo-info (org-collect-code-todos--extract-todo-info 
                               line-start following-lines-end)))
               (when todo-info
+                (push todo-info todos)))))
+        
+        ;; Then, look for regular TODOs without IDs and assign IDs to them
+        (goto-char (point-min))
+        (let ((todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\s-+\\([^[].*\\)$")))
+          (while (re-search-forward todo-regexp nil t)
+            (let* ((todo-state (match-string 1))
+                   (todo-text (string-trim (match-string 2)))
+                   (line-start (line-beginning-position))
+                   (line-end (line-end-position))
+                   (following-lines-end line-end)
+                   (id (org-collect-code-todos--generate-uuid))
+                   (new-todo-line (format "%s %s[%s] %s" 
+                                         comment-prefix 
+                                         todo-state 
+                                         id 
+                                         todo-text)))
+              
+              ;; Look for following comment lines with scheduling info
+              (save-excursion
+                (forward-line 1)
+                (while (and (not (eobp))
+                            (looking-at (concat comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
+                            (not (looking-at (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
+                  (setq following-lines-end (line-end-position))
+                  (forward-line 1)))
+              
+              ;; Replace the old TODO line with the new one that has an ID
+              (org-collect-code-todos--debug "Converting TODO without ID: %s" todo-text)
+              (delete-region line-start (1+ line-end))
+              (goto-char line-start)
+              (insert new-todo-line "\n")
+              
+              ;; Collect the new TODO
+              (let ((todo-info (list new-todo-line 
+                                     (split-string 
+                                      (buffer-substring-no-properties 
+                                       (1+ line-start) following-lines-end) 
+                                      "\n"))))
                 (push todo-info todos))))))
       
       (setq todos (nreverse todos))

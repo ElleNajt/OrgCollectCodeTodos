@@ -41,6 +41,13 @@
     (should (equal (cdr (assoc "SCHEDULED" (cdr result))) "<2025-05-04 Sun>"))
     (should (equal (cdr (assoc "DEADLINE" (cdr result))) "<2025-05-04 Sun>"))))
 
+(ert-deftest org-collect-code-todos-test-create-todo-with-id ()
+  "Test creating a new TODO with ID."
+  (with-temp-buffer
+    (python-mode)
+    (let ((todo-line (org-collect-code-todos--create-todo-with-id "Test this function")))
+      (should (string-match-p "# TODO\\[[0-9a-f-]+\\] Test this function" todo-line)))))
+
 (ert-deftest org-collect-code-todos-test-collect-todos-in-buffer ()
   "Test collecting TODOs from a buffer."
   (with-temp-buffer
@@ -56,11 +63,12 @@
     (insert "    pass\n\n")
     (insert "# TODO[6d2fg78g-83d8-598d-99cd-c16d88646b02] Fix this bug\n")
     (insert "# SCHEDULED: <2025-05-05 Mon>\n")
+    (insert "\n# TODO Add more tests\n")  ;; TODO without ID
     
     ;; Collect TODOs
     (let ((todos (org-collect-code-todos--collect-todos-in-buffer)))
-      ;; Should find 2 TODOs
-      (should (= (length todos) 2))
+      ;; Should find 3 TODOs (2 with IDs already, 1 that gets an ID assigned)
+      (should (= (length todos) 3))
       
       ;; Check first TODO
       (let ((first-todo (nth 0 todos)))
