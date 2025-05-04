@@ -154,10 +154,9 @@ Returns a plist with :id, :path, :scheduled, and :deadline properties."
     (condition-case nil
         (progn
           (org-back-to-heading t)
-          (let* ((element (org-element-at-point))
-                 (heading-content (buffer-substring-no-properties 
-                                   (org-element-property :begin element)
-                                   (org-element-property :end element)))
+          (let* ((heading-content (buffer-substring-no-properties 
+                                   (line-beginning-position)
+                                   (save-excursion (outline-next-heading) (point))))
                  (todo-id nil)
                  (path nil)
                  (scheduled (org-entry-get (point) "SCHEDULED"))
@@ -255,6 +254,10 @@ Returns a plist with :id, :path, :scheduled, and :deadline properties."
       (org-mode)
       (org-collect-code-todos--with-writable-buffer
        (lambda ()
+         ;; Make sure the file has a title if it's empty
+         (when (= (buffer-size) 0)
+           (insert "#+TITLE: Code TODOs\n#+STARTUP: overview\n\n"))
+           
          ;; First, collect all TODO IDs from the current source file
          (let ((source-todo-ids (mapcar
                                  (lambda (todo)
@@ -438,10 +441,6 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
   "Get the TODO_ID property from the current org entry."
   (org-entry-get nil "TODO_ID"))
 
-(defun org-collect-code-todos--get-id-from-properties ()
-  "Get the TODO_ID property from the current org entry."
-  (org-entry-get nil "TODO_ID"))
-
 (defun org-collect-code-todos--org-to-source-format (org-heading org-scheduled org-deadline comment-prefix indent)
   "Convert org format to source code comment format.
 ORG-HEADING is the org heading with TODO state.
@@ -494,7 +493,7 @@ INDENT is the indentation string."
            "Extracted properties: id=%s, path=%s, state=%s, scheduled=%s, deadline=%s"
            todo-id path current-state scheduled deadline)
 
-          (when (and todo-id path)
+          (when (and todo-id path (file-exists-p path))
             (with-current-buffer (find-file-noselect path)
               ;; Find the TODO line
               (goto-char (point-min))
