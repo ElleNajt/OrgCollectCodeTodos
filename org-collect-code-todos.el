@@ -842,27 +842,42 @@ LAST-TEXT is the previous text of the TODO item."
   (interactive)
   (when (derived-mode-p 'prog-mode)
     (org-collect-code-todos--debug-log 
-     "Setting deadline at point in %s with comment-start: '%s'" 
-     (buffer-file-name) comment-start)
+     "Setting deadline at point in %s with comment-start: '%s', buffer-modified: %s" 
+     (buffer-file-name) comment-start (if (buffer-modified-p) "yes" "no"))
+    
     (save-excursion
       (beginning-of-line)
       (let ((comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
+        (org-collect-code-todos--debug-log "Using comment regex: %s" comment-start-regex)
+        
         (when (looking-at comment-start-regex)
+          (org-collect-code-todos--debug-log "Comment line found at position %d" (point))
           (let ((todo-regex "\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
             (when (re-search-forward todo-regex (line-end-position) t)
+              (org-collect-code-todos--debug-log 
+               "Found TODO at position %d: %s" 
+               (point) (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+              
               (let* ((todo-id (match-string 3))
                      (todo-text (match-string 4))
                      (deadline-date (org-read-date nil t))
                      (existing-scheduled nil))
                 
+                (org-collect-code-todos--debug-log 
+                 "TODO details: id=%s, text='%s', date=%s" 
+                 (or todo-id "nil") todo-text (format-time-string "%Y-%m-%d" deadline-date))
+                
                 ;; If no ID exists, generate one
                 (unless todo-id
                   (setq todo-id (format "%08x%08x" (random #xffffffff) (random #xffffffff)))
+                  (org-collect-code-todos--debug-log "Generated new ID: %s" todo-id)
                   (let ((original-prefix (buffer-substring-no-properties
                                           (line-beginning-position)
                                           (match-beginning 1)))
                         (current-state (match-string 1))
                         (todo-with-id (format "%s[%s] %s" current-state todo-id todo-text)))
+                    (org-collect-code-todos--debug-log 
+                     "Replacing with: '%s%s'" original-prefix todo-with-id)
                     (replace-match (concat original-prefix todo-with-id))))
                 
                 ;; Check for existing scheduled - only take the first one found
@@ -874,14 +889,21 @@ LAST-TEXT is the previous text of the TODO item."
                                 (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
                                                     (regexp-quote (string-trim comment-start)))))
                       (let ((comment-text (match-string-no-properties 1)))
+                        (org-collect-code-todos--debug-log 
+                         "Checking comment line: '%s'" comment-text)
                         (when (and (not scheduled-found)
                                    (string-match "SCHEDULED:\\s-*\\(<[^>]+>\\)" comment-text))
                           (setq existing-scheduled (match-string 1 comment-text))
+                          (org-collect-code-todos--debug-log 
+                           "Found existing scheduled: %s" existing-scheduled)
                           (setq scheduled-found t))
                         (forward-line 1)))))
                 
                 ;; Format the date string
                 (let ((date-str (format-time-string "%Y-%m-%d %a" deadline-date)))
+                  (org-collect-code-todos--debug-log 
+                   "Formatted date string: %s" date-str)
+                  
                   ;; Log buffer content before update
                   (org-collect-code-todos--log-buffer-content "Before deadline update")
                   
