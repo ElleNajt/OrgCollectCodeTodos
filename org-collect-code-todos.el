@@ -551,7 +551,7 @@ ORG-TODO-TEXT is the text of the TODO item."
                    (let ((new-uuid (car update-result)))
                      (org-entry-put (point) "TODO_ID" new-uuid)
                      (save-buffer))))))))
-      (error (message "Error updating source TODO state: %s" (error-message-string error-obj)))))
+      (error (message "Error updating source TODO state: %s" (error-message-string error-obj))))))
 
 ;;; Safe wrappers for org functions
 
