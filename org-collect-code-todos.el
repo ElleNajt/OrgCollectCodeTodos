@@ -324,6 +324,63 @@ TODO-INFO is (todo-line following-lines)."
                 (when deadline
                   (org-deadline nil deadline))))))))))
 
+(defun org-collect-code-todos--find-todo-in-source-file (file-path todo-id)
+  "Find a TODO with TODO-ID in FILE-PATH.
+Returns a cons cell (point . end-point) or nil if not found."
+  (org-collect-code-todos--debug "Finding TODO with ID %s in file %s" todo-id file-path)
+  (when (and file-path (file-exists-p file-path))
+    (with-current-buffer (find-file-noselect file-path)
+      (save-excursion
+        (goto-char (point-min))
+        (let ((comment-prefix (org-collect-code-todos--get-comment-prefix))
+              (case-fold-search nil)
+              (todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[" 
+                                  (regexp-quote todo-id) "\\]"))
+              start end)
+          (when (re-search-forward todo-regexp nil t)
+            (setq start (line-beginning-position))
+            (setq end (line-end-position))
+            
+            ;; Look for following comment lines with scheduling info
+            (save-excursion
+              (forward-line 1)
+              (while (and (not (eobp))
+                          (looking-at (concat comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
+                          (not (looking-at (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
+                (setq end (line-end-position))
+                (forward-line 1)))
+            
+            (cons start (1+ end))))))))
+
+(defun org-collect-code-todos--update-todo-in-source-file (file-path todo-id)
+  "Update TODO with TODO-ID in FILE-PATH from current org entry."
+  (org-collect-code-todos--debug "Updating TODO %s in file %s" todo-id file-path)
+  (when (and file-path (file-exists-p file-path))
+    (let* ((heading (org-get-heading t t t t))
+           (todo-state (org-get-todo-state))
+           (properties (org-entry-properties))
+           (scheduled (cdr (assoc "SCHEDULED" properties)))
+           (deadline (cdr (assoc "DEADLINE" properties)))
+           (org-heading (if todo-state
+                            (concat todo-state " " heading)
+                          heading))
+           (org-props (append
+                       (list (cons "TODO_ID" todo-id))
+                       (when scheduled (list (cons "SCHEDULED" scheduled)))
+                       (when deadline (list (cons "DEADLINE" deadline)))))
+           (source-lines (org-collect-code-todos--org-to-source org-heading org-props)))
+      
+      (with-current-buffer (find-file-noselect file-path)
+        (let ((todo-pos (org-collect-code-todos--find-todo-in-source-file file-path todo-id)))
+          (when todo-pos
+            (let ((start (car todo-pos))
+                  (end (cdr todo-pos)))
+              ;; Replace the old TODO with the new one
+              (delete-region start end)
+              (goto-char start)
+              (insert (string-join source-lines "\n") "\n")
+              (save-buffer))))))))
+
 (defun org-collect-code-todos--update-todos-on-save ()
   "Update TODOs in the org file when saving a source file."
   (when (derived-mode-p 'prog-mode)
@@ -337,6 +394,41 @@ TODO-INFO is (todo-line following-lines)."
         (dolist (todo-info todos)
           (org-collect-code-todos--update-or-create-todo org-file file-path todo-info))))))
 
+(defun org-collect-code-todos--sync-todo-to-source ()
+  "Sync TODO from org file to source file."
+  (org-collect-code-todos--debug "Syncing TODO to source")
+  (let* ((todo-id (org-entry-get (point) "TODO_ID"))
+         (file-path (org-entry-get (point) "FILE_PATH")))
+    
+    (when (and todo-id file-path)
+      (org-collect-code-todos--debug "Syncing TODO %s to file %s" todo-id file-path)
+      (org-collect-code-todos--update-todo-in-source-file file-path todo-id))))
+
+(defun org-collect-code-todos--make-org-file-read-only ()
+  "Make the org TODOs file read-only."
+  (let ((file-path (org-collect-code-todos--get-org-file-path)))
+    (when (and (buffer-file-name) 
+               (string= (expand-file-name (buffer-file-name)) 
+                        (expand-file-name file-path)))
+      (setq buffer-read-only t)
+      (org-collect-code-todos--debug "Made org file read-only: %s" file-path))))
+
+(defun org-collect-code-todos--setup-org-hooks ()
+  "Set up hooks for org-mode synchronization."
+  (org-collect-code-todos--debug "Setting up org hooks")
+  (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
+  (add-hook 'org-after-schedule-hook #'org-collect-code-todos--sync-todo-to-source)
+  (add-hook 'org-after-deadline-hook #'org-collect-code-todos--sync-todo-to-source)
+  (add-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
+
+(defun org-collect-code-todos--remove-org-hooks ()
+  "Remove hooks for org-mode synchronization."
+  (org-collect-code-todos--debug "Removing org hooks")
+  (remove-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
+  (remove-hook 'org-after-schedule-hook #'org-collect-code-todos--sync-todo-to-source)
+  (remove-hook 'org-after-deadline-hook #'org-collect-code-todos--sync-todo-to-source)
+  (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
+
 ;;;###autoload
 (define-minor-mode org-collect-code-todos-mode
   "Minor mode for collecting code TODOs into an org file."
@@ -345,8 +437,10 @@ TODO-INFO is (todo-line following-lines)."
   (if org-collect-code-todos-mode
       (progn
         (add-hook 'after-save-hook #'org-collect-code-todos--update-todos-on-save)
+        (org-collect-code-todos--setup-org-hooks)
         (org-collect-code-todos--debug "Enabled org-collect-code-todos-mode"))
     (remove-hook 'after-save-hook #'org-collect-code-todos--update-todos-on-save)
+    (org-collect-code-todos--remove-org-hooks)
     (org-collect-code-todos--debug "Disabled org-collect-code-todos-mode")))
 
 (provide 'org-collect-code-todos)

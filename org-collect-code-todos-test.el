@@ -155,5 +155,31 @@
       ;; Clean up
       (delete-directory temp-dir t))))
 
+(ert-deftest org-collect-code-todos-test-find-todo-in-source-file ()
+  "Test finding a TODO in a source file."
+  (let* ((temp-dir (make-temp-file "org-collect-code-todos-test" t))
+         (default-directory temp-dir)
+         (file-path (expand-file-name "test.py" temp-dir)))
+    (unwind-protect
+        (progn
+          ;; Create a test file
+          (with-temp-file file-path
+            (insert "# This is a comment\n")
+            (insert "# TODO[5c1ef67f-72c7-487c-88bc-b05c77535b01] Refactor this function\n")
+            (insert "# SCHEDULED: <2025-05-04 Sun>\n")
+            (insert "# DEADLINE: <2025-05-04 Sun>\n")
+            (insert "def some_function():\n")
+            (insert "    pass\n"))
+          
+          ;; Test finding the TODO
+          (let ((todo-pos (org-collect-code-todos--find-todo-in-source-file 
+                           file-path "5c1ef67f-72c7-487c-88bc-b05c77535b01")))
+            (should todo-pos)
+            (with-current-buffer (find-file-noselect file-path)
+              (goto-char (car todo-pos))
+              (should (looking-at "# TODO\\[5c1ef67f-72c7-487c-88bc-b05c77535b01\\]")))))
+      ;; Clean up
+      (delete-directory temp-dir t))))
+
 (provide 'org-collect-code-todos-test)
 ;;; org-collect-code-todos-test.el ends here
