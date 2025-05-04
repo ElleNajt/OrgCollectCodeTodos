@@ -1,6 +1,6 @@
 * org-collect-code-todos
 
-An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
+An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file. Tested with .py, .ts, .nix, .el, .c.
 
 This org mode file is kept read-only, except for toggling TODO/DONE and archiving, to keep synchronization simple but keep compatibility with standard org-mode functionality.
 
@@ -98,11 +98,11 @@ This will only detect TODOs that appear after some number of comment characters,
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 
-* Choices:
+** Choices:
 - Decided not to implement hierarchies conversion (## -> **). Mostly this is because this makes comments from multiple files mix in a confusing way with each other, though that could be fixed by adding file headers to the todo file, this feels like too much complexity. There is a working version at: cdcdc77287212412346b67b23820e26050471f30 .
 
 
-* Planned Improvements:
+** Planned Improvements:
 
 *** TODO Add tags
 *** TODO Treat a paragraph of comments starting as a TODO as a header plus info.
