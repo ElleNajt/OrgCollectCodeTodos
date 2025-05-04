@@ -60,26 +60,25 @@ This is used during operations like changing TODO states or archiving.")
   "Write a debug log message to .aider-debug-logs file."
   (let ((log-file (expand-file-name ".aider-debug-logs")))
     (with-temp-buffer
-      (insert (format "[%s] [%s] " 
+      (insert (format "[%s] %s\n" 
                       (format-time-string "%Y-%m-%d %H:%M:%S")
-                      (or (buffer-file-name) "no-file")))
-      (insert (apply #'format message args))
-      (insert "\n")
+                      (apply #'format message args)))
       (append-to-file (point-min) (point-max) log-file))))
 
 (defun org-collect-code-todos--generate-id ()
   "Generate a unique ID for a TODO item."
   (format "%08x%08x" (random #xffffffff) (random #xffffffff)))
 
-(defun org-collect-code-todos--log-buffer-content (prefix)
-  "Log the content of the current buffer for debugging.
-PREFIX is added to the log message."
-  (let ((content (buffer-substring-no-properties 
-                  (point-min) 
-                  (min (point-max) (+ (point-min) 1000)))))
-    (org-collect-code-todos--debug-log 
-     "%s buffer content (first 1000 chars):\n%s" 
-     prefix content)))
+(defun org-collect-code-todos--make-planning-line (scheduled deadline)
+  "Create a planning line from SCHEDULED and DEADLINE timestamps."
+  (let ((planning-line ""))
+    (when scheduled
+      (setq planning-line (concat planning-line "SCHEDULED: " scheduled)))
+    (when (and scheduled deadline)
+      (setq planning-line (concat planning-line " ")))
+    (when deadline
+      (setq planning-line (concat planning-line "DEADLINE: " deadline)))
+    planning-line))
 
 (defun org-collect-code-todos--find-todo-at-point ()
   "Find a TODO comment at point in a source file.
@@ -125,7 +124,7 @@ or nil if no TODO is found."
   "Execute FN with the buffer temporarily writable if it's the todos buffer."
   (if (not (org-collect-code-todos--is-todos-buffer-p))
       (funcall fn)
-    (let ((was-read-only (and org-collect-code-todos-read-only buffer-read-only))
+    (let ((was-read-only buffer-read-only)
           (inhibit-read-only t))
       (when was-read-only
         (read-only-mode -1))
@@ -148,56 +147,34 @@ or nil if no TODO is found."
   "Extract TODO properties from current heading.
 Returns a plist with :id, :path, :last-text, :scheduled, and :deadline properties."
   (save-excursion
-    (condition-case error-obj
+    (condition-case nil
         (progn
           (org-back-to-heading t)
-          (let* ((next-heading-pos (save-excursion
-                                     (condition-case nil
-                                         (outline-next-heading)
-                                       (error (goto-char (point-max))))
-                                     (point)))
-                 (heading-content (buffer-substring-no-properties (point) next-heading-pos))
+          (let* ((element (org-element-at-point))
+                 (heading-content (buffer-substring-no-properties 
+                                   (org-element-property :begin element)
+                                   (org-element-property :end element)))
                  (todo-id nil)
                  (path nil)
                  (last-text nil)
-                 (scheduled nil)
-                 (deadline nil))
-            
-            (org-collect-code-todos--debug-log 
-             "Extracting properties from heading at pos %d, content length: %d" 
-             (point) (length heading-content))
+                 (scheduled (org-entry-get (point) "SCHEDULED"))
+                 (deadline (org-entry-get (point) "DEADLINE")))
             
             ;; Extract file path from link
             (when (string-match "\\[\\[\\(.+?\\)\\]" heading-content)
-              (setq path (match-string 1 heading-content))
-              (org-collect-code-todos--debug-log "Found path: %s" path))
+              (setq path (match-string 1 heading-content)))
             
             ;; Extract TODO_ID property
-            (when (string-match ":TODO_ID:\\s-*\\([0-9a-f]+\\)" heading-content)
-              (setq todo-id (match-string 1 heading-content))
-              (org-collect-code-todos--debug-log "Found TODO_ID: %s" todo-id))
+            (setq todo-id (org-entry-get (point) "TODO_ID"))
             
             ;; Extract LAST property
-            (when (string-match ":LAST:\\s-*\\(.*\\)" heading-content)
-              (setq last-text (match-string 1 heading-content))
-              (org-collect-code-todos--debug-log "Found LAST: %s" last-text))
-            
-            ;; Get scheduled and deadline timestamps
-            (let ((scheduled-time (org-entry-get (point) "SCHEDULED"))
-                  (deadline-time (org-entry-get (point) "DEADLINE")))
-              (when scheduled-time
-                (setq scheduled scheduled-time)
-                (org-collect-code-todos--debug-log "Found SCHEDULED: %s" scheduled-time))
-              (when deadline-time
-                (setq deadline deadline-time)
-                (org-collect-code-todos--debug-log "Found DEADLINE: %s" deadline-time)))
+            (setq last-text (org-entry-get (point) "LAST"))
             
             (list :id todo-id :path path :last-text last-text 
                   :scheduled scheduled :deadline deadline)))
       (error
        (org-collect-code-todos--debug-log 
-        "Error extracting TODO properties: %s at point %d" 
-        (error-message-string error-obj) (point))
+        "Error extracting TODO properties at point %d" (point))
        (list :id nil :path nil :last-text nil)))))
 
 ;;; Core functionality
@@ -219,29 +196,21 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
         (comment-start (string-trim comment-start))
         todos)
     
-    (org-collect-code-todos--debug-log 
-     "Starting TODO collection for file: %s with comment-start: '%s'" 
-     file-path comment-start)
-
     ;; Find TODOs and DONEs in the current buffer
     (save-excursion
       (goto-char (point-min))
       (let ((todo-regex (format "^\\s-*[%s]*\\s-*\\(\\(?:TODO\\|DONE\\)\\(?:\\[\\([0-9a-f]+\\)\\]\\)?\\)[ \t]+\\(.*\\)"
                                 (regexp-quote comment-start))))
-        (org-collect-code-todos--debug-log "Using regex: %s" todo-regex)
         (while (re-search-forward todo-regex nil t)
           (let* ((existing-id (match-string-no-properties 2))
                  (todo-state (match-string-no-properties 1))
                  (todo-text (string-trim (match-string-no-properties 3)))
                  (file-name (replace-regexp-in-string "[.-]" "_"
                                                       (file-name-nondirectory file-path)))
-                 (id (or existing-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
+                 (id (or existing-id (org-collect-code-todos--generate-id)))
                  (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
-                 ;; Check for scheduling line after the TODO line
                  (scheduled nil)
-                 (deadline nil)
-                 (line-end (line-end-position))
-                 (next-line-pos (save-excursion (forward-line 1) (point))))
+                 (deadline nil))
             
             ;; Look for SCHEDULED and DEADLINE comments in the next lines
             (save-excursion
@@ -250,139 +219,98 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                           (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
                                               (regexp-quote comment-start))))
                 (let ((comment-text (match-string-no-properties 1)))
-                  ;; Extract SCHEDULED if not already found
-                  (when (and (not scheduled)
-                             (string-match "SCHEDULED:\\s-*\\(<[^>]+>\\)" comment-text))
+                  (when (string-match "SCHEDULED:\\s-*\\(<[^>]+>\\)" comment-text)
                     (setq scheduled (match-string 1 comment-text)))
-                  
-                  ;; Extract DEADLINE if not already found
-                  (when (and (not deadline)
-                             (string-match "DEADLINE:\\s-*\\(<[^>]+>\\)" comment-text))
+                  (when (string-match "DEADLINE:\\s-*\\(<[^>]+>\\)" comment-text)
                     (setq deadline (match-string 1 comment-text)))
-                  
                   (forward-line 1))))
             
-            ;; Construct a clean scheduling line
-            (let ((scheduling-line ""))
-              (when scheduled
-                (setq scheduling-line (concat scheduling-line "SCHEDULED: " scheduled)))
-              (when (and scheduled deadline)
-                (setq scheduling-line (concat scheduling-line " ")))
-              (when deadline
-                (setq scheduling-line (concat scheduling-line "DEADLINE: " deadline)))
-
-              (let ((entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n"
-                                   org-state
-                                   todo-text
-                                   file-name
-                                   id
-                                   todo-text)))
-
-                ;; Add scheduling information if present
-                (when (or scheduled deadline)
-                  (let ((planning-line ""))
-                    (when scheduled
-                      (setq planning-line (concat planning-line "SCHEDULED: " scheduled)))
-                    (when (and scheduled deadline)
-                      (setq planning-line (concat planning-line " ")))
-                    (when deadline
-                      (setq planning-line (concat planning-line "DEADLINE: " deadline)))
-                    (setq entry (concat entry planning-line "\n"))))
-
-                ;; Add the file link
-                (setq entry (concat entry (format "[[%s][%s]]\n" file-path todo-text)))
-
-                (org-collect-code-todos--debug-log
-                 "Found TODO: state=%s, id=%s, text='%s'"
-                 todo-state (or existing-id "new") todo-text)
-
-                ;; If no ID exists, add one to the source file
-                (unless existing-id
-                  (let ((original-prefix (buffer-substring-no-properties
-                                          (line-beginning-position)
-                                          (match-beginning 1)))
-                        (todo-with-id (format "%s[%s] %s"
-                                              (if (string-match-p "^DONE" todo-state) "DONE" "TODO")
-                                              id todo-text)))
-                    (org-collect-code-todos--debug-log
-                     "Adding ID to TODO: prefix='%s', new-text='%s'"
-                     original-prefix todo-with-id)
-                    (replace-match (concat original-prefix todo-with-id))))
-
-                (push entry todos)))))
-
-        ;; Process collected TODOs
-        (with-current-buffer (find-file-noselect org-collect-code-todos-file)
-          (org-mode)
-          (org-collect-code-todos--with-writable-buffer
-           (lambda ()
-             ;; First, collect all TODO IDs from the current source file
-             (let ((source-todo-ids (mapcar
-                                     (lambda (todo)
-                                       (let* ((todo-lines (split-string todo "\n"))
-                                              (id-line (nth 2 todo-lines)))
-                                         (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
-                                           (match-string 1 id-line))))
-                                     todos)))
-
-               (org-collect-code-todos--debug-log
-                "Processing file: %s with %d TODOs, IDs: %s"
-                file-path (length todos) (mapconcat #'identity source-todo-ids ", "))
-
-               ;; Then, find and archive TODOs that reference this file but aren't in the source anymore
-               (org-collect-code-todos--archive-deleted-todos file-path source-todo-ids)
-
-               ;; Now add/update TODOs from the source file
-               (dolist (todo todos)
-                 (let* ((todo-lines (split-string todo "\n"))
-                        (heading-line (car todo-lines))
-                        (id-line (nth 2 todo-lines))
-                        (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
-                                   (match-string 1 id-line)))
-                        (todo-text (when (string-match "\\* \\(?:TODO\\|DONE\\) \\(.*\\) :" heading-line)
-                                     (match-string 1 heading-line)))
-                        (existing-entry-found nil))
-
-                   ;; Check if we have an entry with the same ID
-                   (save-excursion
-                     (goto-char (point-min))
-                     (when (and todo-id
-                                (re-search-forward (format ":TODO_ID:\\s-*%s"
-                                                           (regexp-quote todo-id)) nil t))
-                       (setq existing-entry-found t)
-                       (condition-case nil
-                           (org-back-to-heading t)
-                         (error
-                          (setq existing-entry-found nil)))
-
-                       (when existing-entry-found
-                         ;; Update existing entry if needed
-                         (let* ((props (org-collect-code-todos--extract-todo-properties))
-                                (current-last (plist-get props :last-text))
-                                (current-heading-text (org-get-heading t t t t)))
-
-                           (when (and current-last
-                                      (string= current-last current-heading-text)
-                                      (not (string= current-heading-text todo-text)))
-                             (org-edit-headline todo-text)
-                             (org-entry-put (point) "LAST" todo-text)))))
-
-                     ;; Add new entry if needed
-                     (unless existing-entry-found
-                       (org-collect-code-todos--debug-log
-                        "Adding new TODO entry with ID %s: %s"
-                        todo-id (substring todo 0 (min 50 (length todo))))
-                       (goto-char (point-max))
-                       (insert "\n" todo)))))
-
-               (save-buffer)))))))))
+            ;; Construct the org entry
+            (let ((entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n"
+                                 org-state todo-text file-name id todo-text)))
+              
+              ;; Add scheduling information if present
+              (when (or scheduled deadline)
+                (setq entry (concat entry 
+                                   (org-collect-code-todos--make-planning-line scheduled deadline)
+                                   "\n")))
+              
+              ;; Add the file link
+              (setq entry (concat entry (format "[[%s][%s]]\n" file-path todo-text)))
+              
+              ;; If no ID exists, add one to the source file
+              (unless existing-id
+                (let ((original-prefix (buffer-substring-no-properties
+                                        (line-beginning-position)
+                                        (match-beginning 1)))
+                      (todo-with-id (format "%s[%s] %s"
+                                            (if (string-match-p "^DONE" todo-state) "DONE" "TODO")
+                                            id todo-text)))
+                  (replace-match (concat original-prefix todo-with-id))))
+              
+              (push entry todos))))))
+    
+    ;; Process collected TODOs
+    (with-current-buffer (find-file-noselect org-collect-code-todos-file)
+      (org-mode)
+      (org-collect-code-todos--with-writable-buffer
+       (lambda ()
+         ;; First, collect all TODO IDs from the current source file
+         (let ((source-todo-ids (mapcar
+                                 (lambda (todo)
+                                   (let* ((todo-lines (split-string todo "\n"))
+                                          (id-line (nth 2 todo-lines)))
+                                     (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
+                                       (match-string 1 id-line))))
+                                 todos)))
+           
+           ;; Archive TODOs that reference this file but aren't in the source anymore
+           (org-collect-code-todos--archive-deleted-todos file-path source-todo-ids)
+           
+           ;; Now add/update TODOs from the source file
+           (dolist (todo todos)
+             (let* ((todo-lines (split-string todo "\n"))
+                    (heading-line (car todo-lines))
+                    (id-line (nth 2 todo-lines))
+                    (todo-id (when (string-match ":TODO_ID:\\s-*\\(.*\\)" id-line)
+                               (match-string 1 id-line)))
+                    (todo-text (when (string-match "\\* \\(?:TODO\\|DONE\\) \\(.*\\) :" heading-line)
+                                 (match-string 1 heading-line)))
+                    (existing-entry-found nil))
+               
+               ;; Check if we have an entry with the same ID
+               (save-excursion
+                 (goto-char (point-min))
+                 (when (and todo-id
+                            (re-search-forward (format ":TODO_ID:\\s-*%s"
+                                                       (regexp-quote todo-id)) nil t))
+                   (setq existing-entry-found t)
+                   (condition-case nil
+                       (org-back-to-heading t)
+                     (error
+                      (setq existing-entry-found nil)))
+                   
+                   (when existing-entry-found
+                     ;; Update existing entry if needed
+                     (let* ((props (org-collect-code-todos--extract-todo-properties))
+                            (current-last (plist-get props :last-text))
+                            (current-heading-text (org-get-heading t t t t)))
+                       
+                       (when (and current-last
+                                  (string= current-last current-heading-text)
+                                  (not (string= current-heading-text todo-text)))
+                         (org-edit-headline todo-text)
+                         (org-entry-put (point) "LAST" todo-text)))))
+                 
+                 ;; Add new entry if needed
+                 (unless existing-entry-found
+                   (goto-char (point-max))
+                   (insert "\n" todo)))))
+           
+           (save-buffer)))))))
 
 (defun org-collect-code-todos--archive-deleted-todos (file-path active-todo-ids)
   "Archive TODOs from the org file that reference FILE-PATH but aren't in ACTIVE-TODO-IDS."
-  (org-collect-code-todos--debug-log 
-   "Starting archive check for %s with active IDs: %s" 
-   file-path (mapconcat #'identity active-todo-ids ", "))
-  
   (save-excursion
     (goto-char (point-min))
     (let ((file-path-regexp (regexp-quote file-path))
@@ -390,30 +318,20 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
           (org-archive-location (concat (org-collect-code-todos--get-archive-file)
                                         "::* Deleted TODOs")))
       
-      ;; Simpler, more robust approach to finding and processing entries
       (goto-char (point-min))
       (while (re-search-forward file-path-regexp nil t)
-        (org-collect-code-todos--debug-log "Found file path match at position %d" (point))
-        (condition-case err
+        (condition-case nil
             (progn
               (org-back-to-heading t)
-              (let* ((heading-pos (point))
-                     (props (org-collect-code-todos--extract-todo-properties))
+              (let* ((props (org-collect-code-todos--extract-todo-properties))
                      (todo-id (plist-get props :id))
                      (path (plist-get props :path)))
-                
-                (org-collect-code-todos--debug-log 
-                 "Checking heading at pos %d with ID %s, path %s" 
-                 heading-pos todo-id path)
                 
                 ;; If this entry references our file but its ID isn't in active-todo-ids, archive it
                 (when (and path 
                            (string= path file-path)
                            todo-id
                            (not (member todo-id active-todo-ids)))
-                  (org-collect-code-todos--debug-log 
-                   "Archiving TODO with ID %s (not found in source)" todo-id)
-                  
                   ;; Add a note about why it was archived
                   (org-entry-put (point) "ARCHIVED_REASON" "Deleted from source code")
                   
@@ -424,9 +342,6 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                 ;; Always move past this subtree to avoid infinite loops
                 (org-end-of-subtree t t)))
           (error 
-           (org-collect-code-todos--debug-log 
-            "Error during TODO archiving: %s at position %d" 
-            (error-message-string err) (point))
            ;; On error, move forward a bit to avoid getting stuck
            (forward-line 1))))
       
@@ -500,91 +415,44 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
 (defun org-collect-code-todos--update-org-entry-state (todo-id new-state)
   "Update the state of the org entry with TODO-ID to NEW-STATE."
   (when (file-exists-p org-collect-code-todos-file)
-    (org-collect-code-todos--debug-log 
-     "Updating org entry state for TODO[%s] to %s" todo-id new-state)
     (with-current-buffer (find-file-noselect org-collect-code-todos-file)
       (org-mode)
       (org-collect-code-todos--with-writable-buffer
        (lambda ()
          (save-excursion
            (goto-char (point-min))
-           (let ((search-pattern (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id))))
-             (org-collect-code-todos--debug-log "Searching for pattern: %s" search-pattern)
-             (when (re-search-forward search-pattern nil t)
-               (condition-case err
-                   (progn
-                     (org-back-to-heading t)
-                     (let ((current-state (org-get-todo-state)))
-                       (org-collect-code-todos--debug-log 
-                        "Found entry with current state: %s" current-state)
-                       (when (and current-state
-                                  (not (string= current-state new-state)))
-                         (org-collect-code-todos--debug-log 
-                          "Changing state from %s to %s" current-state new-state)
-                         (org-todo new-state))))
-                 (error 
-                  (org-collect-code-todos--debug-log 
-                   "Error updating org entry state: %s" (error-message-string err))
-                  nil))))))))))
+           (when (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t)
+             (condition-case nil
+                 (progn
+                   (org-back-to-heading t)
+                   (let ((current-state (org-get-todo-state)))
+                     (when (and current-state
+                                (not (string= current-state new-state)))
+                       (org-todo new-state))))
+               (error nil)))))))))
 
 (defun org-collect-code-todos--update-scheduling-comments (comment-start todo-id scheduled deadline)
   "Update or add scheduling comments for TODO with TODO-ID.
 Uses COMMENT-START as the comment character.
 SCHEDULED and DEADLINE are the timestamp strings or nil."
-  (org-collect-code-todos--debug-log 
-   "Updating scheduling comments for TODO[%s] with comment-start='%s', SCHEDULED=%s, DEADLINE=%s" 
-   todo-id comment-start (or scheduled "nil") (or deadline "nil"))
-  
   (save-excursion
-    (let ((line-start (line-beginning-position))
-          (indent (make-string (current-indentation) ? )))
-      
+    (let ((indent (make-string (current-indentation) ? )))
       ;; First, delete all scheduling lines after this TODO
       (forward-line 1)
-      (let ((delete-count 0)
-            (start-pos (point)))
-        (org-collect-code-todos--debug-log 
-         "Looking for scheduling lines to delete starting at position %d" start-pos)
-        
+      (let ((start-pos (point)))
         (while (and (< (point) (point-max))
-                    (or (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED:\\|DEADLINE:\\)" 
-                                            (regexp-quote comment-start)))
-                        (looking-at (format "^\\s-*[%s]+\\s-*.*\\(SCHEDULED:\\|DEADLINE:\\)"
-                                            (regexp-quote comment-start)))))
-          (org-collect-code-todos--debug-log 
-           "Found scheduling line to delete: '%s'" 
-           (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
-          (forward-line 1)
-          (setq delete-count (1+ delete-count)))
-        
-        (when (> delete-count 0)
-          (org-collect-code-todos--debug-log 
-           "Deleting %d scheduling lines from %d to %d" 
-           delete-count start-pos (point))
-          (delete-region start-pos (point))))
+                    (looking-at (format "^\\s-*[%s]+\\s-*.*\\(SCHEDULED:\\|DEADLINE:\\)"
+                                        (regexp-quote (string-trim comment-start)))))
+          (forward-line 1))
+        (delete-region start-pos (point)))
       
-      ;; Add scheduling comments as a single clean line
+      ;; Add scheduling comments if needed
       (when (or scheduled deadline)
-        (goto-char line-start)
+        (goto-char (line-beginning-position))
         (end-of-line)
-        (let ((planning-line ""))
-          (when scheduled
-            (setq planning-line (concat planning-line "SCHEDULED: " scheduled)))
-          (when (and scheduled deadline)
-            (setq planning-line (concat planning-line " ")))
-          (when deadline
-            (setq planning-line (concat planning-line "DEADLINE: " deadline)))
-          
-          ;; Ensure comment-start is not empty and has proper spacing
-          (let ((comment-prefix (if (string-empty-p comment-start) 
-                                    "# " 
-                                  (concat comment-start " "))))
-            (org-collect-code-todos--debug-log 
-             "Adding scheduling line: '%s' with comment prefix '%s'" 
-             planning-line comment-prefix)
-            (insert "\n" indent comment-prefix planning-line)
-            (org-collect-code-todos--debug-log 
-             "Added scheduling line at position %d" (point))))))))
+        (let ((planning-line (org-collect-code-todos--make-planning-line scheduled deadline))
+              (comment-prefix (concat (string-trim comment-start) " ")))
+          (insert "\n" indent comment-prefix planning-line))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.
@@ -774,10 +642,6 @@ LAST-TEXT is the previous text of the TODO item."
 PLANNING-TYPE should be either 'scheduled or 'deadline."
   (interactive)
   (when (derived-mode-p 'prog-mode)
-    (org-collect-code-todos--debug-log 
-     "Setting %s at point in %s with comment-start: '%s'" 
-     planning-type (buffer-file-name) comment-start)
-    
     (let ((todo (org-collect-code-todos--find-todo-at-point)))
       (when todo
         (let* ((todo-id (or (plist-get todo :id) (org-collect-code-todos--generate-id)))
@@ -800,10 +664,6 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
                                        (line-end-position) t)
                 (replace-match (concat todo-state "[" todo-id "] ")))))
           
-          ;; Log buffer content before update
-          (org-collect-code-todos--log-buffer-content 
-           (format "Before %s update" (symbol-name planning-type)))
-          
           ;; Check if the date is actually changing
           (if (and current-value (string= current-value new-timestamp))
               (message "%s already set to %s" 
@@ -813,16 +673,10 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
             (org-collect-code-todos--update-scheduling-comments 
              (string-trim comment-start) todo-id new-scheduled new-deadline)
             
-            ;; Log buffer content after update
-            (org-collect-code-todos--log-buffer-content 
-             (format "After %s update" (symbol-name planning-type)))
-            
             ;; Update the org file entry if it exists
             (org-collect-code-todos--update-org-scheduling todo-id new-scheduled new-deadline)
             
             ;; Save the buffer
-            (org-collect-code-todos--debug-log 
-             "About to save buffer after setting %s" (symbol-name planning-type))
             (save-buffer)
             
             ;; Capture apheleia output after save
@@ -845,65 +699,32 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
   "Update scheduling information in the org entry with TODO-ID.
 SCHEDULED and DEADLINE are timestamp strings or nil."
   (when (file-exists-p org-collect-code-todos-file)
-    (org-collect-code-todos--debug-log 
-     "Updating org scheduling for TODO[%s]: SCHEDULED=%s, DEADLINE=%s" 
-     todo-id (or scheduled "nil") (or deadline "nil"))
     (with-current-buffer (find-file-noselect org-collect-code-todos-file)
       (org-mode)
       (org-collect-code-todos--with-writable-buffer
        (lambda ()
          (save-excursion
            (goto-char (point-min))
-           (let ((search-pattern (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id))))
-             (org-collect-code-todos--debug-log "Searching for pattern: %s" search-pattern)
-             (when (re-search-forward search-pattern nil t)
-               (condition-case error-obj
-                   (progn
-                     (org-back-to-heading t)
-                     (org-collect-code-todos--debug-log 
-                      "Found heading for TODO[%s] at position %d" todo-id (point))
-                     
-                     ;; Get current values for comparison
-                     (let ((current-scheduled (org-entry-get (point) "SCHEDULED"))
-                           (current-deadline (org-entry-get (point) "DEADLINE")))
-                       
-                       (org-collect-code-todos--debug-log 
-                        "Current values: SCHEDULED=%s, DEADLINE=%s" 
-                        (or current-scheduled "nil") (or current-deadline "nil"))
-                       
-                       ;; Handle scheduling changes
-                       (if scheduled
-                           (progn
-                             (org-collect-code-todos--debug-log 
-                              "Setting SCHEDULED to %s" scheduled)
-                             (org-schedule nil scheduled))
-                         (when current-scheduled
-                           (org-collect-code-todos--debug-log "Removing SCHEDULED")
-                           (org-schedule '(4)))) ;; C-u prefix to remove
-                       
-                       ;; Handle deadline changes
-                       (if deadline
-                           (progn
-                             (org-collect-code-todos--debug-log 
-                              "Setting DEADLINE to %s" deadline)
-                             (org-deadline nil deadline))
-                         (when current-deadline
-                           (org-collect-code-todos--debug-log "Removing DEADLINE")
-                           (org-deadline '(4))))) ;; C-u prefix to remove
-                     
-                     ;; Verify the changes were applied
-                     (let ((new-scheduled (org-entry-get (point) "SCHEDULED"))
-                           (new-deadline (org-entry-get (point) "DEADLINE")))
-                       (org-collect-code-todos--debug-log 
-                        "After update: SCHEDULED=%s, DEADLINE=%s" 
-                        (or new-scheduled "nil") (or new-deadline "nil")))
-                     
-                     ;; Save the buffer
-                     (save-buffer))
-                 (error 
-                  (org-collect-code-todos--debug-log 
-                   "Error updating org scheduling: %s" (error-message-string error-obj))
-                  nil))))))))))
+           (when (re-search-forward (format ":TODO_ID:\\s-*%s" (regexp-quote todo-id)) nil t)
+             (condition-case nil
+                 (progn
+                   (org-back-to-heading t)
+                   
+                   ;; Handle scheduling changes
+                   (if scheduled
+                       (org-schedule nil scheduled)
+                     (when (org-entry-get (point) "SCHEDULED")
+                       (org-schedule '(4)))) ;; C-u prefix to remove
+                   
+                   ;; Handle deadline changes
+                   (if deadline
+                       (org-deadline nil deadline)
+                     (when (org-entry-get (point) "DEADLINE")
+                       (org-deadline '(4)))) ;; C-u prefix to remove
+                   
+                   ;; Save the buffer
+                   (save-buffer))
+               (error nil))))))))))
 
 ;;; Setup hooks and advice
 
