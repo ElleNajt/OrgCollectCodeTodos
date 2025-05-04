@@ -822,16 +822,18 @@ LAST-TEXT is the previous text of the TODO item."
                   (org-collect-code-todos--update-org-scheduling todo-id 
                                                                  (format "<%s>" date-str) existing-deadline)
 
-                  ;; Save the buffer
-                  (org-collect-code-todos--debug-log 
-                   "Saving buffer after scheduling update, buffer-modified: %s" 
-                   (if (buffer-modified-p) "yes" "no"))
-                  (save-buffer)
+                  ;; Save the buffer with detailed logging
+                  (org-collect-code-todos--debug-log "About to save buffer after scheduling")
+                  (condition-case err
+                      (progn
+                        (save-buffer)
+                        (org-collect-code-todos--debug-log "Buffer saved successfully"))
+                    (error
+                     (org-collect-code-todos--debug-log 
+                      "Error saving buffer: %s" (error-message-string err))))
                   
-                  ;; Check if save was successful
-                  (org-collect-code-todos--debug-log 
-                   "After save, buffer-modified: %s" 
-                   (if (buffer-modified-p) "yes" "no"))
+                  ;; Capture apheleia output after save
+                  (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
                   
                   (message "Scheduled for %s" date-str))))))))))
 
