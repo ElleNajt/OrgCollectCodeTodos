@@ -676,8 +676,8 @@ LAST-TEXT is the previous text of the TODO item."
                             (end-of-line)
                             ;; Ensure comment-start is properly formatted
                             (let ((comment-prefix (if (string-empty-p (string-trim comment-start))
-                                                     "# "
-                                                   (concat (string-trim comment-start) " "))))
+                                                      "# "
+                                                    (concat (string-trim comment-start) " "))))
                               (insert "\n" indent comment-prefix scheduling-line)))))))
                   
                   ;; Only save if we made changes or the buffer was already modified
@@ -855,7 +855,7 @@ LAST-TEXT is the previous text of the TODO item."
                     ;; Capture apheleia output after save
                     (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
                     
-                    (message "Scheduled for %s" date-str))))))))))))
+                    (message "Scheduled for %s" date-str)))))))))))
 
 (defun org-collect-code-todos-set-deadline-at-point ()
   "Add or modify a DEADLINE timestamp for the TODO at point."
@@ -972,7 +972,7 @@ LAST-TEXT is the previous text of the TODO item."
                     ;; Capture apheleia output after save
                     (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
                     
-                    (message "Deadline set for %s" date-str))))))))))))
+                    (message "Deadline set for %s" date-str)))))))))))
 
 (defun org-collect-code-todos--update-org-scheduling (todo-id scheduled deadline)
   "Update scheduling information in the org entry with TODO-ID.
