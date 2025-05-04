@@ -67,6 +67,16 @@ This is used during operations like changing TODO states or archiving.")
       (insert "\n")
       (append-to-file (point-min) (point-max) log-file))))
 
+(defun org-collect-code-todos--log-buffer-content (prefix)
+  "Log the content of the current buffer for debugging.
+PREFIX is added to the log message."
+  (let ((content (buffer-substring-no-properties 
+                  (point-min) 
+                  (min (point-max) (+ (point-min) 1000)))))
+    (org-collect-code-todos--debug-log 
+     "%s buffer content (first 1000 chars):\n%s" 
+     prefix content)))
+
 (defun org-collect-code-todos--is-todos-buffer-p ()
   "Check if current buffer is the code-todos file."
   (and (buffer-file-name)
@@ -492,6 +502,10 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
   "Update or add scheduling comments for TODO with TODO-ID.
 Uses COMMENT-START as the comment character.
 SCHEDULED and DEADLINE are the timestamp strings or nil."
+  (org-collect-code-todos--debug-log 
+   "Updating scheduling comments for TODO[%s] with comment-start='%s', SCHEDULED=%s, DEADLINE=%s" 
+   todo-id comment-start (or scheduled "nil") (or deadline "nil"))
+  
   (save-excursion
     (let ((line-start (line-beginning-position))
           (indent (make-string (current-indentation) ? )))
@@ -500,15 +514,24 @@ SCHEDULED and DEADLINE are the timestamp strings or nil."
       (forward-line 1)
       (let ((delete-count 0)
             (start-pos (point)))
+        (org-collect-code-todos--debug-log 
+         "Looking for scheduling lines to delete starting at position %d" start-pos)
+        
         (while (and (< (point) (point-max))
                     (or (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED:\\|DEADLINE:\\)" 
                                             (regexp-quote comment-start)))
                         (looking-at (format "^\\s-*[%s]+\\s-*.*\\(SCHEDULED:\\|DEADLINE:\\)"
                                             (regexp-quote comment-start)))))
+          (org-collect-code-todos--debug-log 
+           "Found scheduling line to delete: '%s'" 
+           (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
           (forward-line 1)
           (setq delete-count (1+ delete-count)))
         
         (when (> delete-count 0)
+          (org-collect-code-todos--debug-log 
+           "Deleting %d scheduling lines from %d to %d" 
+           delete-count start-pos (point))
           (delete-region start-pos (point))))
       
       ;; Add scheduling comments as a single clean line
@@ -522,11 +545,17 @@ SCHEDULED and DEADLINE are the timestamp strings or nil."
             (setq planning-line (concat planning-line " ")))
           (when deadline
             (setq planning-line (concat planning-line "DEADLINE: " deadline)))
+          
           ;; Ensure comment-start is not empty and has proper spacing
           (let ((comment-prefix (if (string-empty-p comment-start) 
                                     "# " 
                                   (concat comment-start " "))))
-            (insert "\n" indent comment-prefix planning-line)))))))
+            (org-collect-code-todos--debug-log 
+             "Adding scheduling line: '%s' with comment prefix '%s'" 
+             planning-line comment-prefix)
+            (insert "\n" indent comment-prefix planning-line)
+            (org-collect-code-todos--debug-log 
+             "Added scheduling line at position %d" (point))))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.
@@ -716,27 +745,42 @@ LAST-TEXT is the previous text of the TODO item."
   (interactive)
   (when (derived-mode-p 'prog-mode)
     (org-collect-code-todos--debug-log 
-     "Scheduling at point in %s with comment-start: '%s'" 
-     (buffer-file-name) comment-start)
+     "Scheduling at point in %s with comment-start: '%s', buffer-modified: %s" 
+     (buffer-file-name) comment-start (if (buffer-modified-p) "yes" "no"))
+    
     (save-excursion
       (beginning-of-line)
       (let ((comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
+        (org-collect-code-todos--debug-log "Using comment regex: %s" comment-start-regex)
+        
         (when (looking-at comment-start-regex)
+          (org-collect-code-todos--debug-log "Comment line found at position %d" (point))
           (let ((todo-regex "\\(TODO\\|DONE\\)\\(\\[\\([0-9a-f]+\\)\\]\\)?[ \t]+\\(.*\\)"))
             (when (re-search-forward todo-regex (line-end-position) t)
+              (org-collect-code-todos--debug-log 
+               "Found TODO at position %d: %s" 
+               (point) (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+              
               (let* ((todo-id (match-string 3))
                      (todo-text (match-string 4))
                      (scheduled-date (org-read-date nil t))
                      (existing-deadline nil))
                 
+                (org-collect-code-todos--debug-log 
+                 "TODO details: id=%s, text='%s', date=%s" 
+                 (or todo-id "nil") todo-text (format-time-string "%Y-%m-%d" scheduled-date))
+                
                 ;; If no ID exists, generate one
                 (unless todo-id
                   (setq todo-id (format "%08x%08x" (random #xffffffff) (random #xffffffff)))
+                  (org-collect-code-todos--debug-log "Generated new ID: %s" todo-id)
                   (let ((original-prefix (buffer-substring-no-properties
                                           (line-beginning-position)
                                           (match-beginning 1)))
                         (current-state (match-string 1))
                         (todo-with-id (format "%s[%s] %s" current-state todo-id todo-text)))
+                    (org-collect-code-todos--debug-log 
+                     "Replacing with: '%s%s'" original-prefix todo-with-id)
                     (replace-match (concat original-prefix todo-with-id))))
                 
                 ;; Check for existing deadline - only take the first one found
@@ -748,25 +792,47 @@ LAST-TEXT is the previous text of the TODO item."
                                 (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
                                                     (regexp-quote (string-trim comment-start)))))
                       (let ((comment-text (match-string-no-properties 1)))
+                        (org-collect-code-todos--debug-log 
+                         "Checking comment line: '%s'" comment-text)
                         (when (and (not deadline-found)
                                    (string-match "DEADLINE:\\s-*\\(<[^>]+>\\)" comment-text))
                           (setq existing-deadline (match-string 1 comment-text))
+                          (org-collect-code-todos--debug-log 
+                           "Found existing deadline: %s" existing-deadline)
                           (setq deadline-found t))
                         (forward-line 1)))))
                 
                 ;; Format the date string
                 (let ((date-str (format-time-string "%Y-%m-%d %a" scheduled-date)))
+                  (org-collect-code-todos--debug-log 
+                   "Formatted date string: %s" date-str)
+                  
+                  ;; Log buffer content before update
+                  (org-collect-code-todos--log-buffer-content "Before scheduling update")
+                  
                   ;; Update scheduling comment
                   (org-collect-code-todos--update-scheduling-comments 
                    (string-trim comment-start) todo-id 
                    (format "<%s>" date-str) existing-deadline)
+                  
+                  ;; Log buffer content after update
+                  (org-collect-code-todos--log-buffer-content "After scheduling update")
                   
                   ;; Update the org file entry if it exists
                   (org-collect-code-todos--update-org-scheduling todo-id 
                                                                  (format "<%s>" date-str) existing-deadline)
 
                   ;; Save the buffer
+                  (org-collect-code-todos--debug-log 
+                   "Saving buffer after scheduling update, buffer-modified: %s" 
+                   (if (buffer-modified-p) "yes" "no"))
                   (save-buffer)
+                  
+                  ;; Check if save was successful
+                  (org-collect-code-todos--debug-log 
+                   "After save, buffer-modified: %s" 
+                   (if (buffer-modified-p) "yes" "no"))
+                  
                   (message "Scheduled for %s" date-str))))))))))
 
 (defun org-collect-code-todos-set-deadline-at-point ()
@@ -814,17 +880,34 @@ LAST-TEXT is the previous text of the TODO item."
                 
                 ;; Format the date string
                 (let ((date-str (format-time-string "%Y-%m-%d %a" deadline-date)))
+                  ;; Log buffer content before update
+                  (org-collect-code-todos--log-buffer-content "Before deadline update")
+                  
                   ;; Update deadline comment
                   (org-collect-code-todos--update-scheduling-comments 
                    (string-trim comment-start) todo-id 
                    existing-scheduled (format "<%s>" date-str))
                   
+                  ;; Log buffer content after update
+                  (org-collect-code-todos--log-buffer-content "After deadline update")
+                  
                   ;; Update the org file entry if it exists
                   (org-collect-code-todos--update-org-scheduling todo-id 
                                                                  existing-scheduled (format "<%s>" date-str))
 
-                  ;; Save the buffer
-                  (save-buffer)
+                  ;; Save the buffer with detailed logging
+                  (org-collect-code-todos--debug-log "About to save buffer after setting deadline")
+                  (condition-case err
+                      (progn
+                        (save-buffer)
+                        (org-collect-code-todos--debug-log "Buffer saved successfully"))
+                    (error
+                     (org-collect-code-todos--debug-log 
+                      "Error saving buffer: %s" (error-message-string err))))
+                  
+                  ;; Capture apheleia output after save
+                  (run-with-timer 0.2 nil #'org-collect-code-todos--capture-apheleia-output)
+                  
                   (message "Deadline set for %s" date-str))))))))))
 
 (defun org-collect-code-todos--update-org-scheduling (todo-id scheduled deadline)
@@ -868,6 +951,13 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
 
 ;;; Setup hooks and advice
 
+(defun org-collect-code-todos--capture-apheleia-output ()
+  "Capture apheleia formatter output for debugging."
+  (when (get-buffer "*apheleia-ruff-log*")
+    (with-current-buffer "*apheleia-ruff-log*"
+      (let ((log-content (buffer-substring-no-properties (point-min) (point-max))))
+        (org-collect-code-todos--debug-log 
+         "Apheleia ruff log content:\n%s" log-content)))))
 
 (defun org-collect-code-todos-set-read-only ()
   "Set the code-todos buffer to read-only when opened."
@@ -898,6 +988,12 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
 (advice-add 'org-toggle-tag :around #'org-collect-code-todos-safe-toggle-tag)
 (advice-add 'org-schedule :around #'org-collect-code-todos-safe-schedule)
 (advice-add 'org-deadline :around #'org-collect-code-todos-safe-deadline)
+
+;; Add advice to capture apheleia errors
+(when (fboundp 'apheleia--run-formatter)
+  (advice-add 'apheleia--run-formatter :after 
+              (lambda (&rest _) 
+                (run-with-timer 0.1 nil #'org-collect-code-todos--capture-apheleia-output))))
 
 (provide 'org-collect-code-todos)
 
