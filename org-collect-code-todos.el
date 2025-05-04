@@ -112,5 +112,63 @@ Returns a cons cell with (heading . properties-alist)."
     (let ((inhibit-read-only t))
       (funcall fn))))
 
+(defun org-collect-code-todos--extract-todo-info (line-start line-end)
+  "Extract TODO information from region between LINE-START and LINE-END.
+Returns a list of (todo-line following-lines) or nil if no TODO found."
+  (org-collect-code-todos--debug "Extracting TODO info from lines %d-%d" line-start line-end)
+  (let ((lines (split-string (buffer-substring-no-properties line-start line-end) "\n"))
+        todo-line following-lines)
+    (when lines
+      (setq todo-line (car lines))
+      (when (and todo-line (string-match "\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]" todo-line))
+        (setq following-lines (cdr lines))
+        ;; Filter following lines to only include those with scheduling info
+        (setq following-lines 
+              (seq-filter (lambda (line) 
+                            (or (string-match "SCHEDULED:" line)
+                                (string-match "DEADLINE:" line)))
+                          following-lines))
+        (org-collect-code-todos--debug "Found TODO: %s" todo-line)
+        (org-collect-code-todos--debug "Following lines: %s" following-lines)
+        (list todo-line following-lines)))))
+
+(defun org-collect-code-todos--collect-todos-in-buffer ()
+  "Collect all TODOs in the current buffer.
+Returns a list of (todo-line following-lines) for each TODO found.
+Only works in programming modes."
+  (org-collect-code-todos--debug "Collecting TODOs in buffer: %s" (buffer-name))
+  (if (not (derived-mode-p 'prog-mode))
+      (progn
+        (org-collect-code-todos--debug "Buffer is not in prog-mode, skipping")
+        nil)
+    (let ((todos nil)
+          (comment-prefix (org-collect-code-todos--get-comment-prefix))
+          (case-fold-search nil))
+      (save-excursion
+        (goto-char (point-min))
+        (while (re-search-forward (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]") nil t)
+          (let* ((line-start (line-beginning-position))
+                 (line-end (line-end-position))
+                 (next-line-start (1+ line-end))
+                 (following-lines-end line-end))
+            
+            ;; Look for following comment lines with scheduling info
+            (save-excursion
+              (forward-line 1)
+              (while (and (not (eobp))
+                          (looking-at (concat comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
+                          (not (looking-at (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
+                (setq following-lines-end (line-end-position))
+                (forward-line 1)))
+            
+            (let ((todo-info (org-collect-code-todos--extract-todo-info 
+                              line-start following-lines-end)))
+              (when todo-info
+                (push todo-info todos))))))
+      
+      (setq todos (nreverse todos))
+      (org-collect-code-todos--debug "Found %d TODOs in buffer" (length todos))
+      todos)))
+
 (provide 'org-collect-code-todos)
 ;;; org-collect-code-todos.el ends here

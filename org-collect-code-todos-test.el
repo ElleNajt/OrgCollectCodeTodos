@@ -41,5 +41,39 @@
     (should (equal (cdr (assoc "SCHEDULED" (cdr result))) "<2025-05-04 Sun>"))
     (should (equal (cdr (assoc "DEADLINE" (cdr result))) "<2025-05-04 Sun>"))))
 
+(ert-deftest org-collect-code-todos-test-collect-todos-in-buffer ()
+  "Test collecting TODOs from a buffer."
+  (with-temp-buffer
+    ;; Set buffer to python-mode to simulate a programming buffer
+    (python-mode)
+    
+    ;; Insert some TODOs in the buffer
+    (insert "# This is a comment\n")
+    (insert "def some_function():\n")
+    (insert "    # TODO[5c1ef67f-72c7-487c-88bc-b05c77535b01] Refactor this function\n")
+    (insert "    # SCHEDULED: <2025-05-04 Sun>\n")
+    (insert "    # DEADLINE: <2025-05-04 Sun>\n")
+    (insert "    pass\n\n")
+    (insert "# TODO[6d2fg78g-83d8-598d-99cd-c16d88646b02] Fix this bug\n")
+    (insert "# SCHEDULED: <2025-05-05 Mon>\n")
+    
+    ;; Collect TODOs
+    (let ((todos (org-collect-code-todos--collect-todos-in-buffer)))
+      ;; Should find 2 TODOs
+      (should (= (length todos) 2))
+      
+      ;; Check first TODO
+      (let ((first-todo (nth 0 todos)))
+        (should (string-match "TODO\\[5c1ef67f-72c7-487c-88bc-b05c77535b01\\]" (car first-todo)))
+        (should (= (length (cadr first-todo)) 2))
+        (should (string-match "SCHEDULED:" (nth 0 (cadr first-todo))))
+        (should (string-match "DEADLINE:" (nth 1 (cadr first-todo)))))
+      
+      ;; Check second TODO
+      (let ((second-todo (nth 1 todos)))
+        (should (string-match "TODO\\[6d2fg78g-83d8-598d-99cd-c16d88646b02\\]" (car second-todo)))
+        (should (= (length (cadr second-todo)) 1))
+        (should (string-match "SCHEDULED:" (nth 0 (cadr second-todo))))))))
+
 (provide 'org-collect-code-todos-test)
 ;;; org-collect-code-todos-test.el ends here
