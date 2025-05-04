@@ -447,7 +447,7 @@ INDENT is the indentation string."
   (let* ((todo-state (or (org-collect-code-todos--get-todo-state-from-heading org-heading) "TODO"))
          (todo-text (org-collect-code-todos--get-heading-text-without-todo org-heading))
          (todo-id (org-collect-code-todos--get-id-from-properties))
-         (source-line (format "%s%s[%s] %s" indent comment-prefix todo-state todo-id todo-text))
+         (source-line (format "%s%s %s[%s] %s" indent comment-prefix todo-state todo-id todo-text))
          (scheduling-lines ""))
 
     ;; Add scheduling information if present
@@ -473,14 +473,10 @@ INDENT is the indentation string."
 (defun org-collect-code-todos-mark-source-todo-state ()
   "Update TODO/DONE state and scheduling in source file when changed in code-todos.org."
   (when (and (eq major-mode 'org-mode)
-             (org-collect-code-todos--is-todos-buffer-p)
-             (or (and (boundp 'org-state) (member org-state '("TODO" "DONE")))
-                 (org-entry-get nil "SCHEDULED")
-                 (org-entry-get nil "DEADLINE")))
+             (org-collect-code-todos--is-todos-buffer-p))
     (org-collect-code-todos--debug-log
-     "Org TODO state or scheduling changed to %s in %s"
-     (if (boundp 'org-state) org-state "scheduling only")
-     (buffer-file-name))
+     "Checking for changes to sync to source file at point %d" (point))
+    
     (condition-case error-obj
         (let* ((props (org-collect-code-todos--extract-todo-properties))
                (todo-id (plist-get props :id))
@@ -491,15 +487,14 @@ INDENT is the indentation string."
                (deadline (org-entry-get nil "DEADLINE")))
 
           (org-collect-code-todos--debug-log
-           "Extracted properties: id=%s, path=%s, scheduled=%s, deadline=%s"
-           todo-id path scheduled deadline)
+           "Extracted properties: id=%s, path=%s, state=%s, scheduled=%s, deadline=%s"
+           todo-id path current-state scheduled deadline)
 
           (when (and todo-id path)
             (with-current-buffer (find-file-noselect path)
               ;; Find the TODO line
               (goto-char (point-min))
-              (when (re-search-forward (format "\\(TODO\\|DONE\\)\\[%s\\]"
-                                               (regexp-quote todo-id)) nil t)
+              (when (re-search-forward (format "\\[%s\\]" (regexp-quote todo-id)) nil t)
                 (let* ((line-start (line-beginning-position))
                        (indent (make-string (current-indentation) ? ))
                        (comment-prefix (concat (string-trim comment-start) " "))
@@ -662,13 +657,42 @@ PLANNING-TYPE should be either 'scheduled or 'deadline."
                         "::* Archived Tasks"))))
 
 
+;; Define a function to set up all hooks
+(defun org-collect-code-todos-setup-hooks ()
+  "Set up all hooks needed for org-collect-code-todos."
+  ;; For TODO state changes
+  (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
+  
+  ;; For scheduling changes
+  (add-hook 'org-after-schedule-hook #'org-collect-code-todos-mark-source-todo-state)
+  (add-hook 'org-after-deadline-hook #'org-collect-code-todos-mark-source-todo-state)
+  
+  ;; For property changes (in case TODO_ID is modified)
+  (add-hook 'org-property-changed-functions
+            (lambda (property value)
+              (when (string= property "TODO_ID")
+                (org-collect-code-todos-mark-source-todo-state))))
+  
+  ;; For general changes to the org file
+  (add-hook 'after-save-hook
+            (lambda ()
+              (when (and (eq major-mode 'org-mode)
+                         (org-collect-code-todos--is-todos-buffer-p))
+                (org-collect-code-todos--debug-log "Org file saved, checking for changes")
+                (org-map-entries
+                 (lambda ()
+                   (let ((props (org-collect-code-todos--extract-todo-properties)))
+                     (when (and (plist-get props :id) (plist-get props :path))
+                       (org-collect-code-todos-mark-source-todo-state))))
+                 nil nil)))))
+
 ;; Add hooks
 (add-hook 'after-save-hook #'org-collect-code-todos-collect-and-add)
-(add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos-mark-source-todo-state)
-(add-hook 'org-after-schedule-hook #'org-collect-code-todos-mark-source-todo-state)
-(add-hook 'org-after-deadline-hook #'org-collect-code-todos-mark-source-todo-state)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-read-only)
 (add-hook 'find-file-hook #'org-collect-code-todos-set-archive-location)
+
+;; Call the setup function to set up all hooks
+(org-collect-code-todos-setup-hooks)
 
 ;; Add advice
 (advice-add 'org-todo  :around #'org-collect-code-todos-safe-toggle-tag)
