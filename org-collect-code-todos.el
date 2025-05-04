@@ -215,10 +215,13 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                                  todo-text)))
 
               ;; Add scheduling information if present
-              (when scheduled
-                (setq entry (concat entry (format "SCHEDULED: %s\n" scheduled))))
-              (when deadline
-                (setq entry (concat entry (format "DEADLINE: %s\n" deadline))))
+              (when (or scheduled deadline)
+                (let ((planning-line ""))
+                  (when scheduled
+                    (setq planning-line (concat planning-line (format "SCHEDULED: %s " scheduled))))
+                  (when deadline
+                    (setq planning-line (concat planning-line (format "DEADLINE: %s" deadline))))
+                  (setq entry (concat entry (string-trim-right planning-line) "\n"))))
               
               ;; Add the file link
               (setq entry (concat entry (format "[[%s][%s]]\n" file-path todo-text)))
