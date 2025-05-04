@@ -145,7 +145,7 @@ or nil if no TODO is found."
 
 (defun org-collect-code-todos--extract-todo-properties ()
   "Extract TODO properties from current heading.
-Returns a plist with :id, :path, :last-text, :scheduled, and :deadline properties."
+Returns a plist with :id, :path, :scheduled, and :deadline properties."
   (save-excursion
     (condition-case nil
         (progn
@@ -156,7 +156,6 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                                    (org-element-property :end element)))
                  (todo-id nil)
                  (path nil)
-                 (last-text nil)
                  (scheduled (org-entry-get (point) "SCHEDULED"))
                  (deadline (org-entry-get (point) "DEADLINE")))
             
@@ -167,15 +166,12 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
             ;; Extract TODO_ID property
             (setq todo-id (org-entry-get (point) "TODO_ID"))
             
-            ;; Extract LAST property
-            (setq last-text (org-entry-get (point) "LAST"))
-            
-            (list :id todo-id :path path :last-text last-text 
+            (list :id todo-id :path path
                   :scheduled scheduled :deadline deadline)))
       (error
        (org-collect-code-todos--debug-log 
         "Error extracting TODO properties at point %d" (point))
-       (list :id nil :path nil :last-text nil)))))
+       (list :id nil :path nil)))))
 
 ;;; Core functionality
 
@@ -226,8 +222,8 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                   (forward-line 1))))
             
             ;; Construct the org entry
-            (let ((entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n"
-                                 org-state todo-text file-name id todo-text)))
+            (let ((entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:END:\n"
+                                 org-state todo-text file-name id)))
               
               ;; Add scheduling information if present
               (when (or scheduled deadline)
@@ -291,16 +287,8 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                       (setq existing-entry-found nil)))
                    
                    (when existing-entry-found
-                     ;; Update existing entry if needed
-                     (let* ((props (org-collect-code-todos--extract-todo-properties))
-                            (current-last (plist-get props :last-text))
-                            (current-heading-text (org-get-heading t t t t)))
-                       
-                       (when (and current-last
-                                  (string= current-last current-heading-text)
-                                  (not (string= current-heading-text todo-text)))
-                         (org-edit-headline todo-text)
-                         (org-entry-put (point) "LAST" todo-text)))))
+                     ;; No need to update existing entry text
+                     nil)))
                  
                  ;; Add new entry if needed
                  (unless existing-entry-found
@@ -454,20 +442,18 @@ SCHEDULED and DEADLINE are the timestamp strings or nil."
               (comment-prefix (concat (string-trim comment-start) " ")))
           (insert "\n" indent comment-prefix planning-line))))))
 
-(defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
+(defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text)
   "Update TODO state in source file by searching for its ID.
 PATH is the source file path.
 TODO-ID is the unique identifier for the TODO.
 ORG-STATE is the new state (TODO or DONE).
-ORG-TODO-TEXT is the text of the TODO item.
-LAST-TEXT is the previous text of the TODO item."
+ORG-TODO-TEXT is the text of the TODO item."
   (org-collect-code-todos--debug-log 
    "Updating source file %s for TODO[%s] to state %s" 
    path todo-id org-state)
   (condition-case error-obj
       (with-current-buffer (find-file-noselect path)
-        (let ((text-changed (and last-text org-todo-text (not (string= org-todo-text last-text))))
-              (found nil)
+        (let ((found nil)
               (result nil))
           
           ;; Search for the TODO[c40ac004] with the specific ID
@@ -484,18 +470,10 @@ LAST-TEXT is the previous text of the TODO item."
                 (org-collect-code-todos--debug-log 
                  "Found TODO[%s] with state %s and text '%s'" 
                  todo-id current-state current-text)
-                (if text-changed
-                    ;; Text changed - generate new UUID and update everything
-                    (let ((new-uuid (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
-                      (org-collect-code-todos--debug-log 
-                       "Text changed from '%s' to '%s', generating new UUID: %s" 
-                       current-text org-todo-text new-uuid)
-                      (replace-match (concat leading-space org-state "[" new-uuid "] " org-todo-text))
-                      (setq result (cons new-uuid org-todo-text)))
-                  ;; Just update the state
-                  (org-collect-code-todos--debug-log 
-                   "Updating state from %s to %s" current-state org-state)
-                  (replace-match (concat leading-space org-state "[" todo-id "] " current-text))))))
+                ;; Just update the state
+                (org-collect-code-todos--debug-log 
+                 "Updating state from %s to %s" current-state org-state)
+                (replace-match (concat leading-space org-state "[" todo-id "] " current-text))))))
           
           ;; Save the buffer if we made changes
           (when found
@@ -522,7 +500,6 @@ LAST-TEXT is the previous text of the TODO item."
         (let* ((props (org-collect-code-todos--extract-todo-properties))
                (todo-id (plist-get props :id))
                (path (plist-get props :path))
-               (last-text (plist-get props :last-text))
                (org-todo-text (org-get-heading t t t t))
                (current-state (org-get-todo-state))
                (scheduled (org-entry-get nil "SCHEDULED"))
@@ -585,16 +562,14 @@ LAST-TEXT is the previous text of the TODO item."
           (let ((update-result (org-collect-code-todos-update-source-file-by-id
                                 path todo-id
                                 (if (boundp 'org-state) org-state current-state)
-                                org-todo-text last-text)))
+                                org-todo-text)))
             
             ;; If update-result is non-nil, we need to update the TODO_ID property
             (when update-result
               (org-collect-code-todos--with-writable-buffer
                (lambda ()
-                 (let ((new-uuid (car update-result))
-                       (new-text (cdr update-result)))
+                 (let ((new-uuid (car update-result)))
                    (org-entry-put (point) "TODO_ID" new-uuid)
-                   (org-entry-put (point) "LAST" new-text)
                    (save-buffer))))))))
     (error (message "Error updating source TODO state: %s" (error-message-string error-obj)))))
 
