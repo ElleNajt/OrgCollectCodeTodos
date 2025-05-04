@@ -522,7 +522,11 @@ SCHEDULED and DEADLINE are the timestamp strings or nil."
             (setq planning-line (concat planning-line " ")))
           (when deadline
             (setq planning-line (concat planning-line "DEADLINE: " deadline)))
-          (insert "\n" indent comment-start " " planning-line))))))
+          ;; Ensure comment-start is not empty and has proper spacing
+          (let ((comment-prefix (if (string-empty-p comment-start) 
+                                    "# " 
+                                  (concat comment-start " "))))
+            (insert "\n" indent comment-prefix planning-line)))))))
 
 (defun org-collect-code-todos-update-source-file-by-id (path todo-id org-state org-todo-text last-text)
   "Update TODO state in source file by searching for its ID.
@@ -641,7 +645,11 @@ LAST-TEXT is the previous text of the TODO item."
                           (when (not (string-empty-p scheduling-line))
                             (goto-char todo-line-pos)
                             (end-of-line)
-                            (insert "\n" indent (string-trim comment-start) " " scheduling-line))))))
+                            ;; Ensure comment-start is properly formatted
+                            (let ((comment-prefix (if (string-empty-p (string-trim comment-start))
+                                                     "# "
+                                                   (concat (string-trim comment-start) " "))))
+                              (insert "\n" indent comment-prefix scheduling-line)))))))
                   
                   ;; Only save if we made changes or the buffer was already modified
                   (when (or modified-buffer (buffer-modified-p))
@@ -707,6 +715,9 @@ LAST-TEXT is the previous text of the TODO item."
   "Add or modify a SCHEDULED timestamp for the TODO at point."
   (interactive)
   (when (derived-mode-p 'prog-mode)
+    (org-collect-code-todos--debug-log 
+     "Scheduling at point in %s with comment-start: '%s'" 
+     (buffer-file-name) comment-start)
     (save-excursion
       (beginning-of-line)
       (let ((comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
@@ -762,6 +773,9 @@ LAST-TEXT is the previous text of the TODO item."
   "Add or modify a DEADLINE timestamp for the TODO at point."
   (interactive)
   (when (derived-mode-p 'prog-mode)
+    (org-collect-code-todos--debug-log 
+     "Setting deadline at point in %s with comment-start: '%s'" 
+     (buffer-file-name) comment-start)
     (save-excursion
       (beginning-of-line)
       (let ((comment-start-regex (concat "^\\s-*" (regexp-quote (string-trim comment-start)))))
