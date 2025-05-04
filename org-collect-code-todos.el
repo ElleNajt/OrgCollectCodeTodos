@@ -188,24 +188,20 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                                                       (file-name-nondirectory file-path)))
                  (id (or existing-id (format "%08x%08x" (random #xffffffff) (random #xffffffff))))
                  (org-state (if (string-match-p "^DONE" todo-state) "DONE" "TODO"))
-                 ;; Check for scheduled/deadline comments after the TODO line
-                 (scheduled nil)
-                 (deadline nil)
+                 ;; Check for scheduling line after the TODO line
+                 (scheduling-line nil)
                  (line-end (line-end-position))
                  (next-line-pos (save-excursion (forward-line 1) (point))))
             
-            ;; Look for SCHEDULED and DEADLINE comments in the next lines
+            ;; Look for SCHEDULED and DEADLINE comments in the next line
             (save-excursion
               (forward-line 1)
-              (while (and (< (point) (point-max))
-                          (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED\\|DEADLINE\\):\\s-*\\(.*\\)" 
-                                              (regexp-quote comment-start))))
-                (let ((type (match-string-no-properties 1))
-                      (date (match-string-no-properties 2)))
-                  (if (string= type "SCHEDULED")
-                      (setq scheduled date)
-                    (setq deadline date)))
-                (forward-line 1)))
+              (when (and (< (point) (point-max))
+                         (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
+                                             (regexp-quote comment-start))))
+                (let ((comment-text (match-string-no-properties 1)))
+                  (when (string-match "\\(SCHEDULED:\\|DEADLINE:\\)" comment-text)
+                    (setq scheduling-line comment-text)))))
             
             (let ((entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n"
                                  org-state
@@ -215,13 +211,8 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                                  todo-text)))
 
               ;; Add scheduling information if present
-              (when (or scheduled deadline)
-                (let ((planning-line ""))
-                  (when scheduled
-                    (setq planning-line (concat planning-line (format "SCHEDULED: %s " scheduled))))
-                  (when deadline
-                    (setq planning-line (concat planning-line (format "DEADLINE: %s" deadline))))
-                  (setq entry (concat entry (string-trim-right planning-line) "\n"))))
+              (when scheduling-line
+                (setq entry (concat entry scheduling-line "\n")))
               
               ;; Add the file link
               (setq entry (concat entry (format "[[%s][%s]]\n" file-path todo-text)))
@@ -242,10 +233,6 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                    "Adding ID to TODO: prefix='%s', new-text='%s'"
                    original-prefix todo-with-id)
                   (replace-match (concat original-prefix todo-with-id))))
-
-              ;; Update or add scheduling comments if needed
-              (org-collect-code-todos--update-scheduling-comments
-               comment-start id scheduled deadline)
 
               (push entry todos)))))
 
@@ -480,29 +467,7 @@ Returns a cons cell (buffer . position) if found, nil otherwise."
 Uses COMMENT-START as the comment character.
 SCHEDULED and DEADLINE are the timestamp strings or nil."
   (save-excursion
-    (let ((line-start (line-beginning-position))
-          (scheduled-found nil)
-          (deadline-found nil)
-          (existing-scheduled nil)
-          (existing-deadline nil))
-      
-      ;; Check existing scheduling comments and save their values
-      (forward-line 1)
-      (while (and (< (point) (point-max))
-                  (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED\\|DEADLINE\\):\\s-*\\(.*\\)" 
-                                      (regexp-quote comment-start))))
-        (let ((type (match-string-no-properties 1))
-              (value (match-string-no-properties 2)))
-          (if (string= type "SCHEDULED")
-              (progn
-                (setq scheduled-found t)
-                (setq existing-scheduled value))
-            (setq deadline-found t)
-            (setq existing-deadline value)))
-        (forward-line 1))
-      
-      ;; Go back to the TODO line
-      (goto-char line-start)
+    (let ((line-start (line-beginning-position)))
       
       ;; Remove existing scheduling comments
       (forward-line 1)
@@ -512,12 +477,6 @@ SCHEDULED and DEADLINE are the timestamp strings or nil."
                                         (regexp-quote comment-start))))
           (delete-region (line-beginning-position) (line-beginning-position 2))
           (setq delete-count (1+ delete-count))))
-      
-      ;; Use existing values if new ones aren't provided
-      (when (and (not scheduled) existing-scheduled)
-        (setq scheduled existing-scheduled))
-      (when (and (not deadline) existing-deadline)
-        (setq deadline existing-deadline))
       
       ;; Add scheduling comments
       (goto-char line-start)
@@ -602,17 +561,37 @@ LAST-TEXT is the previous text of the TODO item."
                (deadline (org-entry-get nil "DEADLINE")))
           
           (when (and todo-id path)
-            ;; Update the source file
-            (with-current-buffer (find-file-noselect path)
-              (save-excursion
-                (goto-char (point-min))
-                (let ((search-pattern (format "\\(^\\|[ \t]\\)\\s-*\\(TODO\\|DONE\\)\\[%s\\]"
-                                              (regexp-quote todo-id))))
-                  (when (re-search-forward search-pattern nil t)
-                    (org-collect-code-todos--update-scheduling-comments 
-                     (string-trim comment-start) todo-id 
-                     (when scheduled scheduled) 
-                     (when deadline deadline))))))
+            ;; Get the scheduling line directly from the org file
+            (let ((scheduling-line ""))
+              (when (or scheduled deadline)
+                (when scheduled
+                  (setq scheduling-line (concat scheduling-line "SCHEDULED: " scheduled)))
+                (when (and scheduled deadline)
+                  (setq scheduling-line (concat scheduling-line " ")))
+                (when deadline
+                  (setq scheduling-line (concat scheduling-line "DEADLINE: " deadline))))
+              
+              ;; Update the source file
+              (with-current-buffer (find-file-noselect path)
+                (save-excursion
+                  (goto-char (point-min))
+                  (let ((search-pattern (format "\\(^\\|[ \t]\\)\\s-*\\(TODO\\|DONE\\)\\[%s\\]"
+                                                (regexp-quote todo-id))))
+                    (when (re-search-forward search-pattern nil t)
+                      ;; Remove existing scheduling comments
+                      (forward-line 1)
+                      (let ((delete-count 0))
+                        (while (and (< (point) (point-max))
+                                    (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED\\|DEADLINE\\):" 
+                                                        (regexp-quote (string-trim comment-start)))))
+                          (delete-region (line-beginning-position) (line-beginning-position 2))
+                          (setq delete-count (1+ delete-count))))
+                      
+                      ;; Add new scheduling line if needed
+                      (when (not (string-empty-p scheduling-line))
+                        (let ((indent (make-string (current-indentation) ? )))
+                          (goto-char (line-end-position))
+                          (insert "\n" indent (string-trim comment-start) " " scheduling-line))))))))
             
             ;; Update the TODO state and text
             (let ((update-result (org-collect-code-todos-update-source-file-by-id
@@ -696,14 +675,12 @@ LAST-TEXT is the previous text of the TODO item."
                 ;; Check for existing deadline
                 (save-excursion
                   (forward-line 1)
-                  (while (and (< (point) (point-max))
-                              (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED\\|DEADLINE\\):\\s-*\\(.*\\)" 
-                                                  (regexp-quote (string-trim comment-start)))))
-                    (let ((type (match-string-no-properties 1))
-                          (value (match-string-no-properties 2)))
-                      (when (string= type "DEADLINE")
-                        (setq existing-deadline value)))
-                    (forward-line 1)))
+                  (when (and (< (point) (point-max))
+                             (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
+                                                 (regexp-quote (string-trim comment-start)))))
+                    (let ((comment-text (match-string-no-properties 1)))
+                      (when (string-match "DEADLINE:\\s-*\\(.*\\)" comment-text)
+                        (setq existing-deadline (match-string 1 comment-text))))))
                 
                 ;; Format the date string
                 (let ((date-str (format-time-string "%Y-%m-%d %a" scheduled-date)))
@@ -748,14 +725,12 @@ LAST-TEXT is the previous text of the TODO item."
                 ;; Check for existing scheduled
                 (save-excursion
                   (forward-line 1)
-                  (while (and (< (point) (point-max))
-                              (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED\\|DEADLINE\\):\\s-*\\(.*\\)" 
-                                                  (regexp-quote (string-trim comment-start)))))
-                    (let ((type (match-string-no-properties 1))
-                          (value (match-string-no-properties 2)))
-                      (when (string= type "SCHEDULED")
-                        (setq existing-scheduled value)))
-                    (forward-line 1)))
+                  (when (and (< (point) (point-max))
+                             (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
+                                                 (regexp-quote (string-trim comment-start)))))
+                    (let ((comment-text (match-string-no-properties 1)))
+                      (when (string-match "SCHEDULED:\\s-*\\(.*\\)" comment-text)
+                        (setq existing-scheduled (match-string 1 comment-text))))))
                 
                 ;; Format the date string
                 (let ((date-str (format-time-string "%Y-%m-%d %a" deadline-date)))
@@ -792,23 +767,35 @@ SCHEDULED and DEADLINE are timestamp strings or nil."
                    (progn
                      (org-back-to-heading t)
                      
-                     ;; Get existing values
-                     (let ((existing-scheduled (org-entry-get nil "SCHEDULED"))
-                           (existing-deadline (org-entry-get nil "DEADLINE")))
+                     ;; Remove existing scheduling line if any
+                     (let ((next-pos (save-excursion
+                                       (forward-line 1)
+                                       (point))))
                        
-                       ;; Update scheduled timestamp if provided or keep existing
-                       (if scheduled
-                           (org-schedule nil scheduled)
-                         ;; If we have an existing scheduled but nil was passed, remove it
-                         (when (and existing-scheduled (eq scheduled nil))
-                           (org-schedule '(4)))) ;; Use C-u prefix to remove
+                       ;; Check if next line is a scheduling line
+                       (when (and (< next-pos (point-max))
+                                  (save-excursion
+                                    (goto-char next-pos)
+                                    (looking-at "^\\s-*SCHEDULED:\\|DEADLINE:")))
+                         ;; Delete the scheduling line
+                         (goto-char next-pos)
+                         (delete-region (line-beginning-position) (line-beginning-position 2))))
+                     
+                     ;; Insert new scheduling line if needed
+                     (when (or scheduled deadline)
+                       (org-back-to-heading t)
+                       (end-of-line)
+                       (insert "\n")
                        
-                       ;; Update deadline timestamp if provided or keep existing
-                       (if deadline
-                           (org-deadline nil deadline)
-                         ;; If we have an existing deadline but nil was passed, remove it
-                         (when (and existing-deadline (eq deadline nil))
-                           (org-deadline '(4))))) ;; Use C-u prefix to remove
+                       (let ((planning-line ""))
+                         (when scheduled
+                           (setq planning-line (concat planning-line "SCHEDULED: " scheduled)))
+                         (when (and scheduled deadline)
+                           (setq planning-line (concat planning-line " ")))
+                         (when deadline
+                           (setq planning-line (concat planning-line "DEADLINE: " deadline)))
+                         
+                         (insert planning-line)))
                      
                      ;; Save the buffer
                      (save-buffer))
