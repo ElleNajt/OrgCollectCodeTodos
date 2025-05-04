@@ -9,12 +9,13 @@
 (require 'org-collect-code-todos)
 
 (ert-deftest org-collect-code-todos-test-uuid-generation ()
-  "Test UUID generation."
+  "Test UUID generation using org-id."
   (let ((uuid1 (org-collect-code-todos--generate-uuid))
         (uuid2 (org-collect-code-todos--generate-uuid)))
     (should (stringp uuid1))
     (should (stringp uuid2))
-    (should (not (string= uuid1 uuid2)))))
+    (should (not (string= uuid1 uuid2)))
+    (should (string-match-p "^[0-9a-f]\\{8\\}-[0-9a-f]\\{4\\}-[0-9a-f]\\{4\\}-[0-9a-f]\\{4\\}-[0-9a-f]\\{12\\}$" uuid1))))
 
 (ert-deftest org-collect-code-todos-test-org-to-source ()
   "Test conversion from org format to source code format."

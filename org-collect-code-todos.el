@@ -15,7 +15,7 @@
 ;;; Code:
 
 (require 'org)
-(require 'uuid)
+(require 'org-id)
 
 ;; Debugging function
 (defun org-collect-code-todos--debug (message &rest args)
@@ -29,7 +29,7 @@
 (defun org-collect-code-todos--generate-uuid ()
   "Generate a unique ID for a TODO item."
   (org-collect-code-todos--debug "Generating new UUID")
-  (let ((id (uuid-string)))
+  (let ((id (org-id-new)))
     (org-collect-code-todos--debug "Generated UUID: %s" id)
     id))
 
