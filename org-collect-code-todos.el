@@ -287,8 +287,11 @@ Returns a plist with :id, :path, :scheduled, and :deadline properties."
                       (setq existing-entry-found nil)))
                    
                    (when existing-entry-found
-                     ;; No need to update existing entry text
-                     nil)))
+                     ;; Update the heading text if it has changed
+                     (let ((current-heading-text (org-get-heading t t t t)))
+                       (when (and todo-text
+                                  (not (string= current-heading-text todo-text)))
+                         (org-edit-headline todo-text))))))
 
                ;; Add new entry if needed
                (unless existing-entry-found
