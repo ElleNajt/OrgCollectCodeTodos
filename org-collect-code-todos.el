@@ -201,7 +201,24 @@ Returns a plist with :id, :path, :last-text, :scheduled, and :deadline propertie
                                              (regexp-quote comment-start))))
                 (let ((comment-text (match-string-no-properties 1)))
                   (when (string-match "\\(SCHEDULED:\\|DEADLINE:\\)" comment-text)
-                    (setq scheduling-line comment-text)))))
+                    ;; Parse the scheduling line to extract SCHEDULED and DEADLINE
+                    (let ((scheduled nil)
+                          (deadline nil))
+                      ;; Extract SCHEDULED
+                      (when (string-match "SCHEDULED:\\s-*\\(<[^>]+>\\)" comment-text)
+                        (setq scheduled (match-string 1 comment-text)))
+                      ;; Extract DEADLINE
+                      (when (string-match "DEADLINE:\\s-*\\(<[^>]+>\\)" comment-text)
+                        (setq deadline (match-string 1 comment-text)))
+                      
+                      ;; Reconstruct a clean scheduling line
+                      (setq scheduling-line "")
+                      (when scheduled
+                        (setq scheduling-line (concat scheduling-line "SCHEDULED: " scheduled)))
+                      (when (and scheduled deadline)
+                        (setq scheduling-line (concat scheduling-line " ")))
+                      (when deadline
+                        (setq scheduling-line (concat scheduling-line "DEADLINE: " deadline))))))))
             
             (let ((entry (format "* %s %s :%s:\n:PROPERTIES:\n:TODO_ID: %s\n:LAST: %s\n:END:\n"
                                  org-state
@@ -473,7 +490,7 @@ SCHEDULED and DEADLINE are the timestamp strings or nil."
       (forward-line 1)
       (let ((delete-count 0))
         (while (and (< (point) (point-max))
-                    (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED\\|DEADLINE\\):" 
+                    (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED:\\|DEADLINE:\\)" 
                                         (regexp-quote comment-start))))
           (delete-region (line-beginning-position) (line-beginning-position 2))
           (setq delete-count (1+ delete-count))))
@@ -582,7 +599,7 @@ LAST-TEXT is the previous text of the TODO item."
                       (forward-line 1)
                       (let ((delete-count 0))
                         (while (and (< (point) (point-max))
-                                    (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED\\|DEADLINE\\):" 
+                                    (looking-at (format "^\\s-*[%s]+\\s-*\\(SCHEDULED:\\|DEADLINE:\\)" 
                                                         (regexp-quote (string-trim comment-start)))))
                           (delete-region (line-beginning-position) (line-beginning-position 2))
                           (setq delete-count (1+ delete-count))))
@@ -675,12 +692,16 @@ LAST-TEXT is the previous text of the TODO item."
                 ;; Check for existing deadline
                 (save-excursion
                   (forward-line 1)
-                  (when (and (< (point) (point-max))
-                             (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
-                                                 (regexp-quote (string-trim comment-start)))))
-                    (let ((comment-text (match-string-no-properties 1)))
-                      (when (string-match "DEADLINE:\\s-*\\(.*\\)" comment-text)
-                        (setq existing-deadline (match-string 1 comment-text))))))
+                  (let ((deadline-found nil))
+                    (while (and (not deadline-found)
+                                (< (point) (point-max))
+                                (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
+                                                    (regexp-quote (string-trim comment-start)))))
+                      (let ((comment-text (match-string-no-properties 1)))
+                        (when (string-match "DEADLINE:\\s-*\\(\\(<.*>\\)\\)" comment-text)
+                          (setq existing-deadline (match-string 2 comment-text))
+                          (setq deadline-found t))
+                        (forward-line 1)))))
                 
                 ;; Format the date string
                 (let ((date-str (format-time-string "%Y-%m-%d %a" scheduled-date)))
@@ -725,12 +746,16 @@ LAST-TEXT is the previous text of the TODO item."
                 ;; Check for existing scheduled
                 (save-excursion
                   (forward-line 1)
-                  (when (and (< (point) (point-max))
-                             (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
-                                                 (regexp-quote (string-trim comment-start)))))
-                    (let ((comment-text (match-string-no-properties 1)))
-                      (when (string-match "SCHEDULED:\\s-*\\(.*\\)" comment-text)
-                        (setq existing-scheduled (match-string 1 comment-text))))))
+                  (let ((scheduled-found nil))
+                    (while (and (not scheduled-found)
+                                (< (point) (point-max))
+                                (looking-at (format "^\\s-*[%s]+\\s-*\\(.*\\)" 
+                                                    (regexp-quote (string-trim comment-start)))))
+                      (let ((comment-text (match-string-no-properties 1)))
+                        (when (string-match "SCHEDULED:\\s-*\\(\\(<.*>\\)\\)" comment-text)
+                          (setq existing-scheduled (match-string 2 comment-text))
+                          (setq scheduled-found t))
+                        (forward-line 1)))))
                 
                 ;; Format the date string
                 (let ((date-str (format-time-string "%Y-%m-%d %a" deadline-date)))
