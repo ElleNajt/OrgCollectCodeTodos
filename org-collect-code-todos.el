@@ -662,7 +662,7 @@ LAST-TEXT is the previous text of the TODO item."
                    (org-entry-put (point) "TODO_ID" new-uuid)
                    (org-entry-put (point) "LAST" new-text)
                    (save-buffer))))))))
-      (error (message "Error updating source TODO state: %s" (error-message-string error-obj))))))
+    (error (message "Error updating source TODO state: %s" (error-message-string error-obj)))))
 
 ;;; Safe wrappers for org functions
 
