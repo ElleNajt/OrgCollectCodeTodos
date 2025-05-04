@@ -98,9 +98,12 @@ This will only detect TODOs that appear after some number of comment characters,
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 
+* Choices:
+- Decided not to implement hierarchies conversion (## -> **). Mostly this is because this makes comments from multiple files mix in a confusing way with each other, though that could be fixed by adding file headers to the todo file, this feels like too much complexity. There is a working version at: cdcdc77287212412346b67b23820e26050471f30 .
+
+
 * Planned Improvements:
 
 *** TODO Add tags
-*** TODO Handle hierarchies
 *** TODO Treat a paragraph of comments starting as a TODO as a header plus info.
 *** TODO Add scheduling directly in the source code
