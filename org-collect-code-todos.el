@@ -501,19 +501,19 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
       (org-collect-code-todos--debug "Made org file read-only: %s" file-path))))
 
 (defun org-collect-code-todos--setup-org-hooks ()
-  "Set up hooks for org-mode synchronization."
-  (org-collect-code-todos--debug "Setting up org hooks")
+  "Set up hooks and advice for org-mode synchronization."
+  (org-collect-code-todos--debug "Setting up org hooks and advice")
   (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
-  (add-hook 'org-after-schedule-hook #'org-collect-code-todos--sync-todo-to-source)
-  (add-hook 'org-after-deadline-hook #'org-collect-code-todos--sync-todo-to-source)
+  (advice-add 'org-schedule :after #'org-collect-code-todos--sync-todo-to-source)
+  (advice-add 'org-deadline :after #'org-collect-code-todos--sync-todo-to-source)
   (add-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 (defun org-collect-code-todos--remove-org-hooks ()
-  "Remove hooks for org-mode synchronization."
-  (org-collect-code-todos--debug "Removing org hooks")
+  "Remove hooks and advice for org-mode synchronization."
+  (org-collect-code-todos--debug "Removing org hooks and advice")
   (remove-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
-  (remove-hook 'org-after-schedule-hook #'org-collect-code-todos--sync-todo-to-source)
-  (remove-hook 'org-after-deadline-hook #'org-collect-code-todos--sync-todo-to-source)
+  (advice-remove 'org-schedule #'org-collect-code-todos--sync-todo-to-source)
+  (advice-remove 'org-deadline #'org-collect-code-todos--sync-todo-to-source)
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 ;;;###autoload
