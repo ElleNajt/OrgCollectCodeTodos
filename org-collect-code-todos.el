@@ -401,6 +401,72 @@ Returns a cons cell (point . end-point) or nil if not found."
               (insert (string-join source-lines "\n") "\n")
               (save-buffer))))))))
 
+(defun org-collect-code-todos--delete-orphaned-todos (file file-path todos)
+  "Delete TODOs in FILE for FILE-PATH that are not in TODOS list.
+TODOS is a list of (todo-line following-lines) for each TODO found in the source file."
+  (org-collect-code-todos--debug "Checking for orphaned TODOs from file: %s" file-path)
+  (with-current-buffer (find-file-noselect file)
+    (org-collect-code-todos--with-writable-buffer 
+     (current-buffer)
+     (lambda ()
+       (let ((file-heading (file-name-nondirectory file-path))
+             (active-ids (mapcar (lambda (todo-info)
+                                   (let* ((todo-line (car todo-info))
+                                          (following-lines (cadr todo-info))
+                                          (org-data (org-collect-code-todos--source-to-org todo-line following-lines))
+                                          (properties (cdr org-data)))
+                                     (cdr (assoc "TODO_ID" properties))))
+                                 todos))
+             (orphaned-todos nil))
+         
+         ;; Find the file's section in the org file
+         (goto-char (point-min))
+         (when (re-search-forward (format "^\\* Code TODOs\n\\*\\* %s" (regexp-quote file-heading)) nil t)
+           (let ((section-start (match-beginning 0))
+                 (section-end (save-excursion
+                                (org-end-of-subtree t t)
+                                (point))))
+             
+             ;; Find all TODOs in this file's section
+             (goto-char section-start)
+             (while (re-search-forward org-heading-regexp section-end t)
+               (when (= (length (match-string 1)) 2) ; Level 2 heading (TODO entry)
+                 (let* ((todo-start (match-beginning 0))
+                        (todo-id (org-entry-get nil "TODO_ID"))
+                        (todo-file-path (org-entry-get nil "FILE_PATH")))
+                   
+                   ;; Check if this TODO belongs to the current file and is not in active-ids
+                   (when (and todo-id 
+                              todo-file-path
+                              (string= todo-file-path file-path)
+                              (not (member todo-id active-ids)))
+                     (org-collect-code-todos--debug "Found orphaned TODO: %s" todo-id)
+                     (push (cons todo-start todo-id) orphaned-todos)))))
+             
+             ;; Delete orphaned TODOs in reverse order to maintain correct positions
+             (setq orphaned-todos (nreverse orphaned-todos))
+             (dolist (orphan orphaned-todos)
+               (let ((pos (car orphan))
+                     (id (cdr orphan)))
+                 (org-collect-code-todos--debug "Deleting orphaned TODO: %s" id)
+                 (goto-char pos)
+                 (org-mark-subtree)
+                 (delete-region (region-beginning) (region-end))
+                 ;; Delete extra newline if needed
+                 (when (looking-at "\n")
+                   (delete-char 1))))
+             
+             ;; If the file section is now empty (only has the heading), delete it
+             (goto-char section-start)
+             (when (re-search-forward (format "^\\*\\* %s$" (regexp-quote file-heading)) nil t)
+               (let ((heading-start (match-beginning 0)))
+                 (org-end-of-subtree t t)
+                 (if (= (count-lines heading-start (point)) 1)
+                     (progn
+                       (org-collect-code-todos--debug "Deleting empty file section: %s" file-heading)
+                       (goto-char heading-start)
+                       (delete-region heading-start (min (1+ (point-max)) (1+ (point))))))))))))))))
+
 (defun org-collect-code-todos--update-todos-on-save ()
   "Update TODOs in the org file when saving a source file."
   (when (derived-mode-p 'prog-mode)
@@ -409,6 +475,10 @@ Returns a cons cell (point . end-point) or nil if not found."
           (file-path (buffer-file-name))
           (org-file (org-collect-code-todos--ensure-org-file-exists)))
       
+      ;; First, delete orphaned TODOs
+      (org-collect-code-todos--delete-orphaned-todos org-file file-path todos)
+      
+      ;; Then update or create TODOs
       (when todos
         (org-collect-code-todos--debug "Found %d TODOs to update" (length todos))
         (dolist (todo-info todos)
