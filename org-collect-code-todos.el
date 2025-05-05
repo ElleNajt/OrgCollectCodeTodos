@@ -43,7 +43,7 @@
                  ((derived-mode-p 'c-mode 'c++-mode 'java-mode 'js-mode) "//")
                  ((derived-mode-p 'css-mode) "/*")
                  ((derived-mode-p 'html-mode) "<!--")
-                 (t (comment-start)))))
+                 (t comment-start))))
     (org-collect-code-todos--debug "Comment prefix: %s" prefix)
     prefix))
 
