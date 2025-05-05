@@ -172,7 +172,7 @@ Only works in programming modes."
       (save-excursion
         ;; First, look for TODOs with IDs
         (goto-char (point-min))
-        (while (re-search-forward (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]") nil t)
+        (while (re-search-forward (concat "^" comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]") nil t)
           (let* ((line-start (line-beginning-position))
                  (line-end (line-end-position))
                  (next-line-start (1+ line-end))
@@ -182,8 +182,8 @@ Only works in programming modes."
             (save-excursion
               (forward-line 1)
               (while (and (not (eobp))
-                          (looking-at (concat comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
-                          (not (looking-at (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
+                          (looking-at (concat "^"  comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
+                          (not (looking-at (concat "^"  comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
                 (setq following-lines-end (line-end-position))
                 (forward-line 1)))
             
@@ -194,7 +194,7 @@ Only works in programming modes."
         
         ;; Then, look for regular TODOs without IDs and assign IDs to them
         (goto-char (point-min))
-        (let ((todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\s-+\\([^[].*\\)$")))
+        (let ((todo-regexp (concat "^"  comment-prefix "\\s-*\\(TODO\\|DONE\\)\\s-+\\([^[].*\\)$")))
           (while (re-search-forward todo-regexp nil t)
             (let* ((todo-state (match-string 1))
                    (todo-text (string-trim (match-string 2)))

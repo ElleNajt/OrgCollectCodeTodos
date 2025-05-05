@@ -8,6 +8,37 @@ org-collect-code-todos is an Emacs package that:
 - Synchronizes state changes between the org file and source code
 - Provides a read-only protection mechanism to prevent accidental edits
 
+* Helper functions:
+
+** Org format to source code format:
+
+Converts:
+
+#+begin_src org
+** TODO hi
+DEADLINE: <2025-05-04 Sun> SCHEDULED: <2025-05-04 Sun>
+:PROPERTIES:
+:TODO_ID:  5c1ef67f-72c7-487c-88bc-b05c77535b01
+:END:
+#+end_src
+
+to (for instance in python)
+
+#+begin_src
+
+# TODO[5c1ef67f-72c7-487c-88bc-b05c77535b01] refactor this
+# DEADLINE: <2025-05-04 Sun> SCHEDULED: <2025-05-04 Sun>
+
+#+end_src
+
+** Source code format ot org format
+
+Goes the other way
+
+
+** Generate uuid -- builds a unique ID hash.
+
+
 * Core Concepts
 ** TODO Identification
 - Each TODO has a unique ID generated when first collected
@@ -114,6 +145,3 @@ The special handling that is necessary here is to temporarily unlock the file.
 *** Advice
 - Advice on org-todo, org-archive-subtree, etc. to handle read-only state
 
-#+end_src
-
-* user
