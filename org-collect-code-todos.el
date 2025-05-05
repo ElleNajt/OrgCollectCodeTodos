@@ -328,10 +328,10 @@ TODO-INFO is (todo-line following-lines)."
                                                                   (org-collect-code-todos--debug 
                                                                    "Updating org entry: state='%s', text='%s'" 
                                                                    todo-state todo-text)
+                                                                  ;; Update the headline first, because updating schedule and todo will trigger an update back
+                                                                  (org-edit-headline todo-text)
                                                                   ;; Set the TODO state first
-                                                                  (org-todo todo-state)
-                                                                  ;; Then update the headline text
-                                                                  (org-edit-headline todo-text))
+                                                                  (org-todo todo-state))
                                                               ;; If no TODO state in heading, just update the headline
                                                               (progn
                                                                 (org-collect-code-todos--debug 
