@@ -25,17 +25,17 @@ Written *almost* entirely by Claude 3.7 using aider.
 #+begin_src emacs-lisp :tangle yes
 
 ;; Set the path for your code TODOs file (default is ~/org/code-todos.org)
-(setq org-collect-code-todos-file "~/my-todos.org")
+(setq org-collect-code-todos-file "~/code-todos.org")
 
 ;; Change the archive file location
-(setq org-collect-code-todos-archive-file "~/my-archive.org")
+(setq org-collect-code-todos-archive-file "~/code-todos-archive.org")
 
 ;; Set the key for toggling TODO state in source code and jumping to the org entry
 (map! :map prog-mode-map
-      :n "C-c C-t" #'org-collect-code-todos-toggle-state-at-point
-      :n "C-c C-s" #'org-collect-code-todos-schedule-at-point
-      :n "C-c C-d" #'org-collect-code-todos-set-deadline-at-point
-      :n "C-c C-j" #'org-collect-code-todos-jump-to-org-entry)
+      :n "C-c C-t" #'org-collect-code-todos-toggle-todo-state
+      :n "C-c C-s" #'org-collect-code-todos-schedule
+      :n "C-c C-d" #'org-collect-code-todos-deadline
+      :n "C-c C-j" #'org-collect-code-todos-goto-org-todo)
 #+end_src
 
 #+RESULTS:
