@@ -388,13 +388,13 @@ Returns a cons cell (point . end-point) or nil if not found."
                        (when deadline (list (cons "DEADLINE" deadline))))))
       
       (with-current-buffer (find-file-noselect file-path)
-        (let (
-              (source-lines (org-collect-code-todos--org-to-source org-heading org-props))
-
+        (let ((source-lines (org-collect-code-todos--org-to-source org-heading org-props))
               (todo-pos (org-collect-code-todos--find-todo-in-source-file file-path todo-id)))
           (when todo-pos
             (let ((start (car todo-pos))
-                  (end (cdr todo-pos)))
+                  (end (cdr todo-pos))
+                  ;; Temporarily disable after-save-hook to prevent infinite loop
+                  (after-save-hook nil))
               ;; Replace the old TODO with the new one
               (delete-region start end)
               (goto-char start)
