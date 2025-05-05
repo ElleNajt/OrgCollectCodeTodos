@@ -465,7 +465,7 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
                      (progn
                        (org-collect-code-todos--debug "Deleting empty file section: %s" file-heading)
                        (goto-char heading-start)
-                       (delete-region heading-start (min (1+ (point-max)) (1+ (point))))))))))))))))
+                       (delete-region heading-start (1+ (point)))))))))))))))
 
 (defun org-collect-code-todos--update-todos-on-save ()
   "Update TODOs in the org file when saving a source file."
