@@ -604,6 +604,7 @@ This should be called when point is on a TODO line in a source file."
               (switch-to-buffer buffer)
               (goto-char pos)
               ;; Reveal and show the entry
+              (org-back-to-heading t)  ; Added this line
               (org-reveal)
               (org-show-entry)
               (org-show-children)
@@ -620,9 +621,12 @@ This should be called when point is on a TODO line in a source file."
     (if todo-id
         (let ((result (org-collect-code-todos--find-and-goto-org-todo todo-id)))
           (when result
-            (let ((buffer (car result)))
+            (let ((buffer (car result))
+                  (pos (cdr result)))
               (with-current-buffer buffer
-                ;; Toggle the TODO state
+                (goto-char pos)
+                (org-back-to-heading t)  ; Added this line
+                (message "INFO: %s %s %s" todo-id result buffer)
                 (org-collect-code-todos--with-writable-org-file
                  (lambda ()
                    (org-collect-code-todos--todo-done-swap)
@@ -681,14 +685,12 @@ This should be called when point is on a TODO line in a source file."
   "Swap between TODO and DONE states for the current org heading."
   (org-collect-code-todos--debug "Swapping TODO/DONE state")
   (let* ((context (org-element-context))
-         (todo-keyword (org-element-property :todo-keyword context))
          (todo-type (org-element-property :todo-type context)))
+    (message "todo-type: %s" todo-type)
     (org-todo
      (if (eq todo-type 'done)
-         ;; If it's DONE, get the first TODO keyword (usually "TODO")
-         (or (car (org-get-todo-state-options todo-keyword))
+         (or (car (+org-get-todo-keywords-for (org-element-property :todo-keyword context)))
              'todo)
-       ;; If it's not DONE, mark it as DONE
        'done))))
 
 ;;;###autoload
