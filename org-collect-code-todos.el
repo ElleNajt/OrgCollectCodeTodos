@@ -273,20 +273,41 @@ Returns the point at the end of the heading line."
                                                         (setq current-level (1+ current-level))))
                                                     (point)))))
 
-(defun org-collect-code-todos--find-todo-by-id (file todo-id)
+(defun org-collect-code-todos--find-and-goto-todo-by-id (file todo-id &optional goto-and-reveal)
   "Find a TODO with TODO-ID in FILE.
+If GOTO-AND-REVEAL is non-nil, go to the heading, reveal it, and recenter.
 Returns the point at the beginning of the heading, or nil if not found."
-  (org-collect-code-todos--debug "Finding TODO with ID: %s" todo-id)
+  (org-collect-code-todos--debug "Finding TODO with ID: %s (goto: %s)" todo-id goto-and-reveal)
   (with-current-buffer (find-file-noselect file)
     (save-excursion
+      (widen)
       (goto-char (point-min))
       (let ((found nil))
         (while (and (not found)
                     (re-search-forward org-heading-regexp nil t))
           (let ((properties (org-entry-properties)))
             (when (string= (cdr (assoc "TODO_ID" properties)) todo-id)
-              (setq found (match-beginning 0)))))
-        found))))
+              (setq found (match-beginning 0))
+              (when goto-and-reveal
+                (goto-char found)
+                (org-reveal)
+                (org-show-entry)
+                (org-show-children)
+                (recenter)
+                (org-collect-code-todos--debug "Successfully jumped to org TODO")))))
+        
+        (when (and goto-and-reveal (not found))
+          (message "Could not find corresponding TODO in org file")
+          (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id))
+        
+        (if goto-and-reveal
+            (when found (goto-char found))
+          found)))))
+
+(defun org-collect-code-todos--find-todo-by-id (file todo-id)
+  "Find a TODO with TODO-ID in FILE.
+Returns the point at the beginning of the heading, or nil if not found."
+  (org-collect-code-todos--find-and-goto-todo-by-id file todo-id nil))
 
 (defun org-collect-code-todos--update-or-create-todo (file file-path todo-info)
   "In FILE, update or create a TODO from TODO-INFO for source at FILE-PATH.
@@ -510,28 +531,7 @@ This should be called when point is on a TODO line in a source file."
       
       ;; Open the org file and find the TODO
       (let ((org-file (org-collect-code-todos--ensure-org-file-exists)))
-        (find-file org-file)
-        (widen)
-        (goto-char (point-min))
-        
-        ;; Use the same approach as org-collect-code-todos--find-todo-by-id
-        (let ((found nil))
-          (while (and (not found)
-                      (re-search-forward org-heading-regexp nil t))
-            (let ((properties (org-entry-properties)))
-              (when (string= (cdr (assoc "TODO_ID" properties)) todo-id)
-                (setq found (match-beginning 0))
-                (goto-char found)
-                ;; Reveal and show the entry
-                (org-reveal)
-                (org-show-entry)
-                (org-show-children)
-                (recenter)
-                (org-collect-code-todos--debug "Successfully jumped to org TODO"))))
-          
-          (unless found
-            (message "Could not find corresponding TODO in org file")
-            (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id)))))
+        (org-collect-code-todos--find-and-goto-todo-by-id org-file todo-id t)))
     
     (unless todo-id
       (message "No TODO found at point")
