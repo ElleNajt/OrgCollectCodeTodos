@@ -230,15 +230,17 @@ Only works in programming modes."
             (let* ((todo-state (match-string 1))
                    (todo-text (string-trim (match-string 2)))
                    (line-start (line-beginning-position))
+                   (prefix-text (buffer-substring-no-properties line-start (match-beginning 1)))
                    (line-end (line-end-position))
                    (following-lines-end line-end)
+                   (_ (message "prefix %s" prefix-text))
                    (id (org-collect-code-todos--generate-uuid))
-                   (new-todo-line (format "%s %s[%s] %s" 
-                                          comment-prefix
+                   (new-todo-line (format "%s%s[%s] %s"
+                                          prefix-text
                                           todo-state
                                           id
                                           todo-text)))
-              
+
               ;; Look for following comment lines with scheduling info
               (save-excursion
                 (forward-line 1)
@@ -250,6 +252,7 @@ Only works in programming modes."
               
               ;; Replace the old TODO line with the new one that has an ID
               (org-collect-code-todos--debug "Converting TODO without ID: %s" todo-text)
+              (org-collect-code-todos--debug "%s %s" line-start line-end)
               (delete-region line-start (1+ line-end))
               (goto-char line-start)
               (insert new-todo-line "\n")
