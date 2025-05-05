@@ -491,6 +491,11 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
       (org-collect-code-todos--debug "Syncing TODO %s to file %s" todo-id file-path)
       (org-collect-code-todos--update-todo-in-source-file file-path todo-id))))
 
+(defun org-collect-code-todos--sync-todo-to-source-advice (&rest _args)
+  "Wrapper for `org-collect-code-todos--sync-todo-to-source' to use as advice.
+Ignores any arguments passed to it."
+  (org-collect-code-todos--sync-todo-to-source))
+
 (defun org-collect-code-todos--make-org-file-read-only ()
   "Make the org TODOs file read-only."
   (let ((file-path (org-collect-code-todos--get-org-file-path)))
@@ -504,16 +509,16 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
   "Set up hooks and advice for org-mode synchronization."
   (org-collect-code-todos--debug "Setting up org hooks and advice")
   (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
-  (advice-add 'org-schedule :after #'org-collect-code-todos--sync-todo-to-source)
-  (advice-add 'org-deadline :after #'org-collect-code-todos--sync-todo-to-source)
+  (advice-add 'org-schedule :after #'org-collect-code-todos--sync-todo-to-source-advice)
+  (advice-add 'org-deadline :after #'org-collect-code-todos--sync-todo-to-source-advice)
   (add-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 (defun org-collect-code-todos--remove-org-hooks ()
   "Remove hooks and advice for org-mode synchronization."
   (org-collect-code-todos--debug "Removing org hooks and advice")
   (remove-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
-  (advice-remove 'org-schedule #'org-collect-code-todos--sync-todo-to-source)
-  (advice-remove 'org-deadline #'org-collect-code-todos--sync-todo-to-source)
+  (advice-remove 'org-schedule #'org-collect-code-todos--sync-todo-to-source-advice)
+  (advice-remove 'org-deadline #'org-collect-code-todos--sync-todo-to-source-advice)
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 ;;;###autoload
