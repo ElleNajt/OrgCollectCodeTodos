@@ -333,7 +333,7 @@ TODO-INFO is (todo-line following-lines)."
                                                             (org-collect-code-todos--find-or-create-heading
                                                              file (list "Code TODOs" file-heading))
                                                             (insert "\n")
-                                                            (insert "** " heading)
+                                                            (insert "*** " heading)
                                                             (org-set-property "TODO_ID" todo-id)
                                                             ;; Use org-entry-properties-from-alist instead of org-set-property for FILE
                                                             (org-entry-put (point) "FILE_PATH" file-path)
@@ -406,7 +406,7 @@ Returns a cons cell (point . end-point) or nil if not found."
 TODOS is a list of (todo-line following-lines) for each TODO found in the source file."
   (org-collect-code-todos--debug "Checking for orphaned TODOs from file: %s" file-path)
   (with-current-buffer (find-file-noselect file)
-    (org-collect-code-todos--with-writable-buffer 
+    (org-collect-code-todos--with-writable-buffer
      (current-buffer)
      (lambda ()
        (let ((file-heading (file-name-nondirectory file-path))
@@ -418,32 +418,38 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
                                      (cdr (assoc "TODO_ID" properties))))
                                  todos))
              (orphaned-todos nil))
-         
+
          ;; Find the file's section in the org file
          (goto-char (point-min))
-         (when (re-search-forward (format "^\\* Code TODOs\n\\*\\* %s" (regexp-quote file-heading)) nil t)
+         (when (re-search-forward
+                (format "^\\* Code TODOs\\s-*\n\\s-*\\*\\* %s" (regexp-quote file-heading))
+                nil t)
            (let ((section-start (match-beginning 0))
                  (section-end (save-excursion
                                 (org-end-of-subtree t t)
                                 (point))))
-             
-             ;; Find all TODOs in this file's section
+
+             ;; Go to start of file's section
              (goto-char section-start)
-             (while (re-search-forward org-heading-regexp section-end t)
-               (when (= (length (match-string 1)) 2) ; Level 2 heading (TODO entry)
-                 (let* ((todo-start (match-beginning 0))
+             (org-next-visible-heading 1)  ; Move to first heading
+
+             ;; Scan through all level-3 headings in this section
+             (while (< (point) section-end)
+               (when (= (org-outline-level) 3)  ; Level 3 = TODO entry
+                 (let* ((todo-start (point))
                         (todo-id (org-entry-get nil "TODO_ID"))
                         (todo-file-path (org-entry-get nil "FILE_PATH")))
-                   
-                   ;; Check if this TODO belongs to the current file and is not in active-ids
-                   (when (and todo-id 
+
+                   ;; Check if TODO belongs to current file and isn't active
+                   (when (and todo-id
                               todo-file-path
                               (string= todo-file-path file-path)
                               (not (member todo-id active-ids)))
                      (org-collect-code-todos--debug "Found orphaned TODO: %s" todo-id)
-                     (push (cons todo-start todo-id) orphaned-todos)))))
-             
-             ;; Delete orphaned TODOs in reverse order to maintain correct positions
+                     (push (cons todo-start todo-id) orphaned-todos))))
+               (org-next-visible-heading 1))
+
+             ;; Delete orphaned TODOs in reverse order
              (setq orphaned-todos (nreverse orphaned-todos))
              (dolist (orphan orphaned-todos)
                (let ((pos (car orphan))
@@ -452,11 +458,10 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
                  (goto-char pos)
                  (org-mark-subtree)
                  (delete-region (region-beginning) (region-end))
-                 ;; Delete extra newline if needed
                  (when (looking-at "\n")
                    (delete-char 1))))
-             
-             ;; If the file section is now empty (only has the heading), delete it
+
+             ;; Delete empty file section if needed
              (goto-char section-start)
              (when (re-search-forward (format "^\\*\\* %s$" (regexp-quote file-heading)) nil t)
                (let ((heading-start (match-beginning 0)))
@@ -465,7 +470,8 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
                      (progn
                        (org-collect-code-todos--debug "Deleting empty file section: %s" file-heading)
                        (goto-char heading-start)
-                       (delete-region heading-start (1+ (point)))))))))))))))
+                       (delete-region heading-start (1+ (point))))))))))))))
+
 
 (defun org-collect-code-todos--update-todos-on-save ()
   "Update TODOs in the org file when saving a source file."
