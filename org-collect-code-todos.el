@@ -528,6 +528,7 @@ Restores the read-only state after execution."
   
   ;; Add advice to temporarily make the org file writable for these operations
   (advice-add 'org-todo :around #'org-collect-code-todos--make-writable-advice)
+  (advice-add 'org-collect-code-todos--todo-done-swap :around #'org-collect-code-todos--make-writable-advice)
   (advice-add 'org-schedule :around #'org-collect-code-todos--make-writable-advice)
   (advice-add 'org-deadline :around #'org-collect-code-todos--make-writable-advice)
   
@@ -542,6 +543,7 @@ Restores the read-only state after execution."
   
   ;; Remove the writable advice
   (advice-remove 'org-todo #'org-collect-code-todos--make-writable-advice)
+  (advice-remove 'org-collect-code-todos--todo-done-swap #'org-collect-code-todos--make-writable-advice)
   (advice-remove 'org-schedule #'org-collect-code-todos--make-writable-advice)
   (advice-remove 'org-deadline #'org-collect-code-todos--make-writable-advice)
   
@@ -623,7 +625,7 @@ This should be called when point is on a TODO line in a source file."
                 ;; Toggle the TODO state
                 (org-collect-code-todos--with-writable-org-file
                  (lambda ()
-                   (org-todo)
+                   (org-collect-code-todos--todo-done-swap)
                    (message "Toggled TODO state")))))))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
@@ -674,6 +676,20 @@ This should be called when point is on a TODO line in a source file."
       (org-collect-code-todos--with-writable-org-file
        (lambda () (apply orig-fun args)))
     (apply orig-fun args)))
+
+(defun org-collect-code-todos--todo-done-swap ()
+  "Swap between TODO and DONE states for the current org heading."
+  (org-collect-code-todos--debug "Swapping TODO/DONE state")
+  (let* ((context (org-element-context))
+         (todo-keyword (org-element-property :todo-keyword context))
+         (todo-type (org-element-property :todo-type context)))
+    (org-todo
+     (if (eq todo-type 'done)
+         ;; If it's DONE, get the first TODO keyword (usually "TODO")
+         (or (car (org-get-todo-state-options todo-keyword))
+             'todo)
+       ;; If it's not DONE, mark it as DONE
+       'done))))
 
 ;;;###autoload
 (define-minor-mode org-collect-code-todos-mode
