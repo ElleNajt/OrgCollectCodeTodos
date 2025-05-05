@@ -12,11 +12,10 @@ Large amounts of this were written by Claude 3.7 using aider.
 
 #+begin_src emacs-lisp :tangle yes
 
-;; Set the path for your code TODOs file (default is ~/org/code-todos.org)
-(setq org-collect-code-todos-file "~/code-todos.org")
+;; Set the defualt location for the code todos org file.
+;; By default this is put in the projetile project root for the project of a given source file.
+(setq org-collect-code-todos-file "~/org/code-todos.org")
 
-;; Change the archive file location
-(setq org-collect-code-todos-archive-file "~/code-todos-archive.org")
 
 ;; Set the key for toggling TODO state in source code and jumping to the org entry
 (map! :map prog-mode-map
@@ -105,16 +104,8 @@ While the actual TODO toggle function calls and scheduling only happen in the or
    - Use `org-collect-code-todos-goto-org-todo`
    - Emacs will open the Org file and jump to the corresponding entry
 
-** Synchronization Details
 
-The package maintains synchronization through these mechanisms:
-
-1. *File Saving*: When you save a source file, all TODOs are collected and synchronized with the Org file
-2. *State Changes*: When you change a TODO state in the org file, the change is propagated to the source code
-3. *ID Tracking*: Each TODO has a unique ID that maintains the connection between source and Org entries
-4. *Orphan Handling*: If a TODO is removed from source code, it's marked as orphaned in the Org file
-5. *Single Source of Truth*: The org file is the authoritative source for TODO states and scheduling information
-
+*** Note:
 Make sure to put the code-todos.org file somewhere where your org agenda will scan for it!
 
 
