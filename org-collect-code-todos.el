@@ -333,11 +333,11 @@ Returns a cons cell (point . end-point) or nil if not found."
     (with-current-buffer (find-file-noselect file-path)
       (save-excursion
         (goto-char (point-min))
-        (let ((comment-prefix (org-collect-code-todos--get-comment-prefix))
-              (case-fold-search nil)
-              (todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[" 
-                                   (regexp-quote todo-id) "\\]"))
-              start end)
+        (let* ((comment-prefix (org-collect-code-todos--get-comment-prefix))
+               (case-fold-search nil)
+               (todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\["
+                                    (regexp-quote todo-id) "\\]"))
+               start end)
           (when (re-search-forward todo-regexp nil t)
             (setq start (line-beginning-position))
             (setq end (line-end-position))
