@@ -19,14 +19,32 @@
 
 ;; Debugging function
 (defun org-collect-code-todos--debug (message &rest args)
-  "Write debug MESSAGE with ARGS to debug log file if debugging is enabled."
+  "Write debug MESSAGE with ARGS to debug buffer if debugging is enabled."
   (when org-collect-code-todos-debug
-    (message (apply #'format message args))
-    (with-temp-buffer
-      (insert (format "%s: " (format-time-string "%Y-%m-%d %H:%M:%S")))
-      (insert (apply #'format message args))
-      (insert "\n")
-      (append-to-file (point-min) (point-max) ".aider-debug-logs"))))
+    (let ((formatted-message (apply #'format message args))
+          (buffer-name "*org-collect-code-todos-debug*"))
+      ;; Create or get the debug buffer
+      (with-current-buffer (get-buffer-create buffer-name)
+        (goto-char (point-max))
+        (insert (format "%s: %s\n" 
+                        (format-time-string "%Y-%m-%d %H:%M:%S")
+                        formatted-message))))))
+
+(defcustom org-collect-code-todos-verbose nil
+  "Whether to show informational messages during operations.
+When non-nil, shows messages about TODO updates and state changes."
+  :type 'boolean
+  :group 'org-collect-code-todos)
+
+(defun org-collect-code-todos--message (message &rest args)
+  "Display MESSAGE with ARGS if verbose mode is enabled.
+Always passes the message to the debug function."
+  (let ((formatted-message (apply #'format message args)))
+    ;; Always log to debug
+    (org-collect-code-todos--debug formatted-message)
+    ;; Only show in minibuffer if verbose
+    (when org-collect-code-todos-verbose
+      (message "%s" formatted-message))))
 
 (defun org-collect-code-todos--generate-uuid ()
   "Generate a unique ID for a TODO item."
@@ -57,7 +75,7 @@ Returns a list of strings, one for each line of the TODO comment."
                          (match-string 1 org-heading)
                        "TODO"))
          (todo-text (replace-regexp-in-string "^[ \t]*\\(TODO\\|DONE\\) " "" org-heading))
-         (_ (message "todo text: %s" todo-text))
+         (_ (org-collect-code-todos--message "todo text: %s" todo-text))
          (scheduled (cdr (assoc "SCHEDULED" org-properties)))
          (deadline (cdr (assoc "DEADLINE" org-properties)))
          (comment-prefix (org-collect-code-todos--get-comment-prefix))
@@ -104,7 +122,7 @@ Returns a cons cell with (heading . properties-alist)."
                             (match-string 3 todo-line)))
       (org-collect-code-todos--debug "Extracted heading from source: '%s'" heading)
       (org-collect-code-todos--debug "Extracted TODO ID from source: '%s'" todo-id)
-      (message "heading: %s" heading)
+      (org-collect-code-todos--message "heading: %s" heading)
       (push (cons "TODO_ID" todo-id) properties))
     
     ;; Process following lines for scheduling info
@@ -245,7 +263,7 @@ If nil, defaults to code-todos.org in the project root or current directory."
 
 (defcustom org-collect-code-todos-debug nil
   "Whether to enable debug logging for org-collect-code-todos.
-When non-nil, debug messages will be logged to '.aider-debug-logs'."
+When non-nil, debug messages will be logged to the debug buffer."
   :type 'boolean
   :group 'org-collect-code-todos)
 
@@ -597,6 +615,7 @@ Returns the buffer and position if found, nil otherwise."
         
         (if found
             (cons buffer (point))
+          (org-collect-code-todos--debug "Could not find corresponding TODO in org file")
           (message "Could not find corresponding TODO in org file")
           (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id)
           nil)))))
@@ -622,6 +641,7 @@ This should be called when point is on a TODO line in a source file."
               (org-show-entry)
               (org-show-children)
               (recenter))))
+      (org-collect-code-todos--debug "No TODO found at point")
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
@@ -639,11 +659,11 @@ This should be called when point is on a TODO line in a source file."
               (with-current-buffer buffer
                 (goto-char pos)
                 (org-back-to-heading t)  ; Added this line
-                (message "INFO: %s %s %s" todo-id result buffer)
+                (org-collect-code-todos--message "INFO: %s %s %s" todo-id result buffer)
                 (org-collect-code-todos--with-writable-org-file
                  (lambda ()
                    (org-collect-code-todos--todo-done-swap)
-                   (message "Toggled TODO state")))))))
+                   (org-collect-code-todos--message "Toggled TODO state")))))))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
@@ -662,7 +682,7 @@ This should be called when point is on a TODO line in a source file."
                 (org-collect-code-todos--with-writable-org-file
                  (lambda ()
                    (call-interactively 'org-schedule)
-                   (message "Scheduled TODO")))))))
+                   (org-collect-code-todos--message "Scheduled TODO")))))))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
@@ -681,7 +701,7 @@ This should be called when point is on a TODO line in a source file."
                 (org-collect-code-todos--with-writable-org-file
                  (lambda ()
                    (call-interactively 'org-deadline)
-                   (message "Set deadline for TODO")))))))
+                   (org-collect-code-todos--message "Set deadline for TODO")))))))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
@@ -699,7 +719,7 @@ This should be called when point is on a TODO line in a source file."
   (org-collect-code-todos--debug "Swapping TODO/DONE state")
   (let* ((context (org-element-context))
          (todo-type (org-element-property :todo-type context)))
-    (message "todo-type: %s" todo-type)
+    (org-collect-code-todos--message "todo-type: %s" todo-type)
     (org-todo
      (if (eq todo-type 'done)
          (or (car (+org-get-todo-keywords-for (org-element-property :todo-keyword context)))
