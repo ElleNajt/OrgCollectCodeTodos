@@ -418,7 +418,8 @@ TODO-INFO is (todo-line following-lines)."
 
 (defun org-collect-code-todos--find-todo-in-source-file (file-path todo-id)
   "Find a TODO with TODO-ID in FILE-PATH.
-Returns a cons cell (point . end-point) or nil if not found."
+Returns a cons cell (point . end-point) or nil if not found,
+where point is the position where the TODO comment starts."
   (org-collect-code-todos--debug "Finding TODO with ID %s in file %s" todo-id file-path)
   (when (and file-path (file-exists-p file-path))
     (with-current-buffer (find-file-noselect file-path)
@@ -430,15 +431,18 @@ Returns a cons cell (point . end-point) or nil if not found."
                                     (regexp-quote todo-id) "\\]"))
                start end)
           (when (re-search-forward todo-regexp nil t)
-            (setq start (line-beginning-position))
+            ;; Find the start of the TODO comment, not the line
+            (setq start (save-excursion
+                          (goto-char (match-beginning 0))
+                          (point)))
             (setq end (line-end-position))
             
             ;; Look for following comment lines with scheduling info
             (save-excursion
               (forward-line 1)
               (while (and (not (eobp))
-                          (looking-at (concat comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
-                          (not (looking-at (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
+                          (looking-at (concat "^" comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
+                          (not (looking-at (concat "^" comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
                 (setq end (line-end-position))
                 (forward-line 1)))
             
