@@ -10,11 +10,16 @@ Written *almost* entirely by Claude 3.7 using aider.
 
 ** Design Philosophy
 
-The core design principle of this package is to maintain a bidirectional synchronization between TODOs in source code and a centralized Org file, while keeping the system simple and robust:
+The core design principle of this package is to maintain a controlled flow of information between TODOs in source code and a centralized Org file, while keeping the system simple and robust:
 
-- *Single Source of Truth*: Source code files are considered the primary source of truth for TODO content.
+- *Directed Information Flow*: Different types of information flow in specific directions:
+  - TODO text content flows from source code to org file
+  - TODO state (TODO/DONE) flows bidirectionally
+  - Scheduling and deadline information flows bidirectionally
+  - Tags and properties are managed in the org file
+
 - *Unique IDs*: Each TODO is assigned a unique ID to maintain the connection between source code and Org entries.
-- *Read-Only Org File*: The Org file is kept read-only (except for state changes) to prevent synchronization conflicts.
+- *Read-Only Org File*: The Org file is kept read-only (except for allowed operations) to prevent synchronization conflicts.
 - *Minimal Disruption*: The package aims to integrate with your existing workflow without requiring significant changes.
 
 ** Technical Implementation
