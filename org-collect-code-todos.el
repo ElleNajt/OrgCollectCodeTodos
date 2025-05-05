@@ -19,13 +19,14 @@
 
 ;; Debugging function
 (defun org-collect-code-todos--debug (message &rest args)
-  "Write debug MESSAGE with ARGS to debug log file."
-  (message (apply #'format message args))
-  (with-temp-buffer
-    (insert (format "%s: " (format-time-string "%Y-%m-%d %H:%M:%S")))
-    (insert (apply #'format message args))
-    (insert "\n")
-    (append-to-file (point-min) (point-max) ".aider-debug-logs")))
+  "Write debug MESSAGE with ARGS to debug log file if debugging is enabled."
+  (when org-collect-code-todos-debug
+    (message (apply #'format message args))
+    (with-temp-buffer
+      (insert (format "%s: " (format-time-string "%Y-%m-%d %H:%M:%S")))
+      (insert (apply #'format message args))
+      (insert "\n")
+      (append-to-file (point-min) (point-max) ".aider-debug-logs"))))
 
 (defun org-collect-code-todos--generate-uuid ()
   "Generate a unique ID for a TODO item."
@@ -240,6 +241,12 @@ Only works in programming modes."
 If nil, defaults to code-todos.org in the project root or current directory."
   :type '(choice (file :tag "File path")
           (const :tag "Default location" nil))
+  :group 'org-collect-code-todos)
+
+(defcustom org-collect-code-todos-debug nil
+  "Whether to enable debug logging for org-collect-code-todos.
+When non-nil, debug messages will be logged to '.aider-debug-logs'."
+  :type 'boolean
   :group 'org-collect-code-todos)
 
 (defun org-collect-code-todos--get-org-file-path ()
