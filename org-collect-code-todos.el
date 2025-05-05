@@ -547,46 +547,121 @@ Restores the read-only state after execution."
   
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
+(defun org-collect-code-todos--get-todo-id-at-point ()
+  "Get the TODO ID at point in a source file.
+Returns the TODO ID or nil if not found."
+  (let ((line (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+        (todo-id nil))
+    ;; Extract the TODO ID from the current line
+    (when (string-match "\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]" line)
+      (setq todo-id (match-string 2 line))
+      (org-collect-code-todos--debug "Found TODO ID: %s" todo-id))
+    todo-id))
+
+(defun org-collect-code-todos--find-and-goto-org-todo (todo-id)
+  "Find and go to the org TODO with TODO-ID.
+Returns t if found, nil otherwise."
+  (when todo-id
+    (org-collect-code-todos--debug "Finding org TODO with ID: %s" todo-id)
+    ;; Open the org file and find the TODO
+    (let ((org-file (org-collect-code-todos--ensure-org-file-exists))
+          (found nil))
+      (find-file org-file)
+      (widen)
+      (goto-char (point-min))
+      
+      ;; Search for the TODO
+      (while (and (not found)
+                  (re-search-forward org-heading-regexp nil t))
+        (let ((properties (org-entry-properties)))
+          (when (string= (cdr (assoc "TODO_ID" properties)) todo-id)
+            (setq found (match-beginning 0))
+            (goto-char found)
+            ;; Reveal and show the entry
+            (org-reveal)
+            (org-show-entry)
+            (org-show-children)
+            (recenter)
+            (org-collect-code-todos--debug "Successfully found org TODO"))))
+      
+      (if found
+          t
+        (message "Could not find corresponding TODO in org file")
+        (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id)
+        nil))))
+
 ;;;###autoload
 (defun org-collect-code-todos-goto-org-todo ()
   "Jump from a TODO in source code to the corresponding TODO in the org file.
 This should be called when point is on a TODO line in a source file."
   (interactive)
   (org-collect-code-todos--debug "Attempting to jump to org TODO from source")
-  (let ((line (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
-        (todo-id nil))
-    
-    ;; Extract the TODO ID from the current line
-    (when (string-match "\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]" line)
-      (setq todo-id (match-string 2 line))
-      (org-collect-code-todos--debug "Found TODO ID: %s" todo-id)
-      
-      ;; Open the org file and find the TODO
-      (let ((org-file (org-collect-code-todos--ensure-org-file-exists)))
-        (find-file org-file)
-        (widen)
-        (goto-char (point-min))
-        
-        ;; Use the same approach as org-collect-code-todos--find-todo-by-id
-        (let ((found nil))
-          (while (and (not found)
-                      (re-search-forward org-heading-regexp nil t))
-            (let ((properties (org-entry-properties)))
-              (when (string= (cdr (assoc "TODO_ID" properties)) todo-id)
-                (setq found (match-beginning 0))
-                (goto-char found)
-                ;; Reveal and show the entry
-                (org-reveal)
-                (org-show-entry)
-                (org-show-children)
-                (recenter)
-                (org-collect-code-todos--debug "Successfully jumped to org TODO"))))
-          
-          (unless found
-            (message "Could not find corresponding TODO in org file")
-            (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id)))))
-    
-    (unless todo-id
+  (let ((todo-id (org-collect-code-todos--get-todo-id-at-point)))
+    (if todo-id
+        (org-collect-code-todos--find-and-goto-org-todo todo-id)
+      (message "No TODO found at point")
+      (org-collect-code-todos--debug "No TODO ID found at current line"))))
+
+;;;###autoload
+(defun org-collect-code-todos-toggle-todo-state ()
+  "Toggle the TODO state of the org entry corresponding to the source code TODO at point."
+  (interactive)
+  (org-collect-code-todos--debug "Toggling TODO state from source")
+  (let ((todo-id (org-collect-code-todos--get-todo-id-at-point)))
+    (if todo-id
+        (let ((current-buffer (current-buffer))
+              (current-point (point)))
+          (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
+            ;; Toggle the TODO state
+            (org-collect-code-todos--with-writable-org-file
+             (lambda ()
+               (org-todo)
+               (message "Toggled TODO state")))
+            ;; Return to the source buffer
+            (switch-to-buffer current-buffer)
+            (goto-char current-point)))
+      (message "No TODO found at point")
+      (org-collect-code-todos--debug "No TODO ID found at current line"))))
+
+;;;###autoload
+(defun org-collect-code-todos-schedule ()
+  "Schedule the org entry corresponding to the source code TODO at point."
+  (interactive)
+  (org-collect-code-todos--debug "Scheduling TODO from source")
+  (let ((todo-id (org-collect-code-todos--get-todo-id-at-point)))
+    (if todo-id
+        (let ((current-buffer (current-buffer))
+              (current-point (point)))
+          (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
+            ;; Schedule the TODO
+            (org-collect-code-todos--with-writable-org-file
+             (lambda ()
+               (call-interactively 'org-schedule)
+               (message "Scheduled TODO")))
+            ;; Return to the source buffer
+            (switch-to-buffer current-buffer)
+            (goto-char current-point)))
+      (message "No TODO found at point")
+      (org-collect-code-todos--debug "No TODO ID found at current line"))))
+
+;;;###autoload
+(defun org-collect-code-todos-deadline ()
+  "Set deadline for the org entry corresponding to the source code TODO at point."
+  (interactive)
+  (org-collect-code-todos--debug "Setting deadline for TODO from source")
+  (let ((todo-id (org-collect-code-todos--get-todo-id-at-point)))
+    (if todo-id
+        (let ((current-buffer (current-buffer))
+              (current-point (point)))
+          (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
+            ;; Set deadline for the TODO
+            (org-collect-code-todos--with-writable-org-file
+             (lambda ()
+               (call-interactively 'org-deadline)
+               (message "Set deadline for TODO")))
+            ;; Return to the source buffer
+            (switch-to-buffer current-buffer)
+            (goto-char current-point)))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
