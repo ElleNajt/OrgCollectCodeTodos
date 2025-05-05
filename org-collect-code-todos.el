@@ -66,6 +66,11 @@ Returns a list of strings, one for each line of the TODO comment."
                                todo-id
                                todo-text))))
     
+    (org-collect-code-todos--debug "Org heading: '%s'" org-heading)
+    (org-collect-code-todos--debug "Extracted todo state: '%s'" todo-state)
+    (org-collect-code-todos--debug "Extracted todo text: '%s'" todo-text)
+    (org-collect-code-todos--debug "Constructed source line: '%s'" (car result))
+    
     ;; Add scheduling and deadline info on a single line if either exists
     (when (or scheduled deadline)
       (let ((schedule-line (format "%s" comment-prefix)))
@@ -96,6 +101,8 @@ Returns a cons cell with (heading . properties-alist)."
       (setq heading (format "%s %s" 
                             (match-string 1 todo-line)
                             (match-string 3 todo-line)))
+      (org-collect-code-todos--debug "Extracted heading from source: '%s'" heading)
+      (org-collect-code-todos--debug "Extracted TODO ID from source: '%s'" todo-id)
       (message "heading: %s" heading)
       (push (cons "TODO_ID" todo-id) properties))
     
@@ -303,6 +310,9 @@ TODO-INFO is (todo-line following-lines)."
          (deadline (cdr (assoc "DEADLINE" properties)))
          (todo-point (org-collect-code-todos--find-todo-by-id file todo-id)))
     
+    (org-collect-code-todos--debug "Source to org conversion: heading='%s', todo-id='%s'" 
+                                   heading todo-id)
+    
     (with-current-buffer (find-file-noselect file)
       (org-collect-code-todos--with-writable-buffer (current-buffer)
                                                     (lambda ()
@@ -315,12 +325,18 @@ TODO-INFO is (todo-line following-lines)."
                                                             (if (string-match "^\\(TODO\\|DONE\\) \\(.*\\)" heading)
                                                                 (let ((todo-state (match-string 1 heading))
                                                                       (todo-text (match-string 2 heading)))
+                                                                  (org-collect-code-todos--debug 
+                                                                   "Updating org entry: state='%s', text='%s'" 
+                                                                   todo-state todo-text)
                                                                   ;; Set the TODO state first
                                                                   (org-todo todo-state)
                                                                   ;; Then update the headline text
                                                                   (org-edit-headline todo-text))
                                                               ;; If no TODO state in heading, just update the headline
-                                                              (org-edit-headline heading))
+                                                              (progn
+                                                                (org-collect-code-todos--debug 
+                                                                 "Updating org entry with just heading: '%s'" heading)
+                                                                (org-edit-headline heading)))
                                                             (when scheduled
                                                               (org-schedule nil scheduled))
                                                             (when deadline
@@ -384,6 +400,10 @@ Returns a cons cell (point . end-point) or nil if not found."
                        (when scheduled (list (cons "SCHEDULED" scheduled)))
                        (when deadline (list (cons "DEADLINE" deadline))))))
       
+      (org-collect-code-todos--debug "Org entry for source update: raw heading='%s', todo-state='%s'" 
+                                     heading todo-state)
+      (org-collect-code-todos--debug "Constructed org heading for source: '%s'" org-heading)
+      
       (with-current-buffer (find-file-noselect file-path)
         (let ((source-lines (org-collect-code-todos--org-to-source org-heading org-props))
               (todo-pos (org-collect-code-todos--find-todo-in-source-file file-path todo-id)))
@@ -395,6 +415,8 @@ Returns a cons cell (point . end-point) or nil if not found."
               ;; Replace the old TODO with the new one
               (delete-region start end)
               (goto-char start)
+              (org-collect-code-todos--debug "Inserting into source file: '%s'" 
+                                             (string-join source-lines "\n"))
               (insert (string-join source-lines "\n") "\n")
               (save-buffer))))))))
 
