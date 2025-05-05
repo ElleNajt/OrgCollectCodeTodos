@@ -517,8 +517,13 @@ This should be called when point is on a TODO line in a source file."
         ;; Search for the TODO with matching ID
         (if (re-search-forward (format ":TODO_ID: %s" (regexp-quote todo-id)) nil t)
             (progn
+              ;; Move to the beginning of the heading
+              (org-back-to-heading t)
+              ;; Reveal and show the entry
               (org-reveal)
               (org-show-entry)
+              (org-show-children)
+              (recenter)
               (org-collect-code-todos--debug "Successfully jumped to org TODO"))
           (message "Could not find corresponding TODO in org file")
           (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id))))
