@@ -311,7 +311,16 @@ TODO-INFO is (todo-line following-lines)."
                                                           (progn
                                                             (org-collect-code-todos--debug "Updating existing TODO: %s" heading)
                                                             (goto-char todo-point)
-                                                            (org-edit-headline heading)
+                                                            ;; Extract the TODO state and text from the heading
+                                                            (if (string-match "^\\(TODO\\|DONE\\) \\(.*\\)" heading)
+                                                                (let ((todo-state (match-string 1 heading))
+                                                                      (todo-text (match-string 2 heading)))
+                                                                  ;; Set the TODO state first
+                                                                  (org-todo todo-state)
+                                                                  ;; Then update the headline text
+                                                                  (org-edit-headline todo-text))
+                                                              ;; If no TODO state in heading, just update the headline
+                                                              (org-edit-headline heading))
                                                             (when scheduled
                                                               (org-schedule nil scheduled))
                                                             (when deadline
