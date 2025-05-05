@@ -8,6 +8,24 @@ Changes to the TODO in the source code file update in the org mode file by givin
 
 Written *almost* entirely by Claude 3.7 using aider.
 
+** Design Philosophy
+
+The core design principle of this package is to maintain a bidirectional synchronization between TODOs in source code and a centralized Org file, while keeping the system simple and robust:
+
+- *Single Source of Truth*: Source code files are considered the primary source of truth for TODO content.
+- *Unique IDs*: Each TODO is assigned a unique ID to maintain the connection between source code and Org entries.
+- *Read-Only Org File*: The Org file is kept read-only (except for state changes) to prevent synchronization conflicts.
+- *Minimal Disruption*: The package aims to integrate with your existing workflow without requiring significant changes.
+
+** Technical Implementation
+
+The package works through these key mechanisms:
+
+1. *TODO Detection*: When you save a file, the package scans for TODO comments and assigns unique IDs to new ones.
+2. *Org File Synchronization*: TODOs are organized in a structured Org file with properties to track their source.
+3. *State Synchronization*: Changes to TODO states in either the source code or Org file are propagated to the other.
+4. *Orphan Handling*: TODOs that are removed from source code are archived in the Org file.
+
 ** Overview
 
 `org-collect-code-todos` scans your code files for TODO comments and maintains a centralized Org mode file where you can track and manage them. When you mark a TODO as DONE in the Org file, it updates the corresponding comment in the source code.
@@ -64,38 +82,65 @@ In the org file you will see:
 * TODO This needs optimization :test_py:
 :PROPERTIES:
 :TODO_ID: 1cbe31f98195af20
-:LAST: This needs optimization
+:FILE_PATH: /home/elle/code/OrgCollectCodeTodos/test.py
 :END:
-[[/home/elle/code/OrgCollectCodeTodos/test.py][This needs optimization]]
 #+end_src
 
 This will only detect TODOs that appear after some number of comment characters, followed by whitespace.
 
-1. In the Org file, you can:
+** Working with TODOs
+
+*** In the Org File
+
+In the Org file, you can:
    - Mark TODOs as DONE (which updates the source code)
    - Schedule TODOs or set deadlines
    - Archive completed TODOs
 
-2. When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
+The Org file is kept read-only to prevent synchronization conflicts, but specific operations like changing TODO states, scheduling, and deadlines are allowed through special handling.
+
+*** In Source Code
+
+When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
    
-   #+begin_src python
-   # DONE[d7dab7fc6b277026] This needs optimization
-   #+end_src
+#+begin_src python
+# DONE[d7dab7fc6b277026] This needs optimization
+#+end_src
 
-3. You can also toggle TODO/DONE state directly in your source code:
+You can also work directly with TODOs in your source code:
+
+1. *Toggle TODO/DONE state*:
    - Place your cursor on a TODO line
-   - Invoke org-collect-code-todos-toggle-state-at-point
-   - The state will toggle between TODO and DONE
-   - The change will be synchronized with the org file
+   - Use `org-collect-code-todos-toggle-todo-state`
+   - The state will toggle between TODO and DONE in both the source and Org file
 
-4. You can jump from a TODO in your source code to its entry in the org file:
+2. *Schedule a TODO*:
    - Place your cursor on a TODO line
-   - Invoke org-collect-code-todos-jump-to-org-entry
-   - Emacs will open the org file and jump to the corresponding entry
+   - Use `org-collect-code-todos-schedule`
+   - Set a date in the minibuffer
+   - The schedule will be added to both the source and Org file
 
-5. The org file is kept read only, to keep sychronization simple. Just edit the todo in the source code file and the changes will be reflected in the org file. The code uses the ID to do this.
+3. *Set a deadline*:
+   - Place your cursor on a TODO line
+   - Use `org-collect-code-todos-deadline`
+   - Set a date in the minibuffer
+   - The deadline will be added to both the source and Org file
 
-6. Make sure to put the code-todos.org file somewhere were you org agenda will scan for it!
+4. *Jump to Org entry*:
+   - Place your cursor on a TODO line
+   - Use `org-collect-code-todos-goto-org-todo`
+   - Emacs will open the Org file and jump to the corresponding entry
+
+** Synchronization Details
+
+The package maintains synchronization through these mechanisms:
+
+1. *File Saving*: When you save a source file, all TODOs are collected and synchronized with the Org file
+2. *State Changes*: When you change a TODO state in either location, the change is propagated to the other
+3. *ID Tracking*: Each TODO has a unique ID that maintains the connection between source and Org entries
+4. *Orphan Handling*: If a TODO is removed from source code, it's marked as orphaned in the Org file
+
+Make sure to put the code-todos.org file somewhere where your org agenda will scan for it!
 
 ** License
 
