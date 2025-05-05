@@ -457,11 +457,8 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
          (dolist (pos orphaned-todos)
            (goto-char pos)
            (let ((id (org-entry-get nil "TODO_ID")))
-             (org-collect-code-todos--debug "Deleting orphaned TODO: %s" id)
-             (org-mark-subtree)
-             (delete-region (region-beginning) (region-end))
-             (when (looking-at "\n")
-               (delete-char 1)))))))))
+             (org-collect-code-todos--debug "Archiving orphaned TODO: %s" id)
+             (org-archive-subtree))))))))
 
 
 (defun org-collect-code-todos--update-todos-on-save ()
