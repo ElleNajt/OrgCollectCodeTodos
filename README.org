@@ -30,6 +30,9 @@ Install and enable org-collect-code-todos-mode
 
 #+RESULTS:
 
+*** Note:
+Make sure to put the code-todos.org file somewhere where your org agenda will scan for it!
+
 
 ** Usage
 
@@ -108,8 +111,6 @@ While the actual TODO toggle function calls and scheduling only happen in the or
    - Emacs will open the Org file and jump to the corresponding entry
 
 
-*** Note:
-Make sure to put the code-todos.org file somewhere where your org agenda will scan for it!
 
 
 * Planned work:
