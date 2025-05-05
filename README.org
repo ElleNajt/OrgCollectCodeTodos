@@ -7,6 +7,9 @@ This org mode file is kept read-only, except for toggling TODO/DONE and scheduli
 Changes to the TODO in the source code file update in the org mode file. When a TODO is deleted from the source code file, it is archived from the todo org mode file. TODOs can be scheduled or given deadlines, and this is synchronized.
 
 Large amounts of this were written by Claude 3.7 using aider.
+** Setup:
+
+Install and enable org-collect-code-todos-mode
 
 ** Configuration
 
