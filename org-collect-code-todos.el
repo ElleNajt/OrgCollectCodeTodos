@@ -328,19 +328,16 @@ TODO-INFO is (todo-line following-lines)."
                                                         ;; Create new TODO
                                                         (progn
                                                           (org-collect-code-todos--debug "Creating new TODO: %s" heading)
-                                                          ;; Find or create file heading
-                                                          (let ((file-heading (file-name-nondirectory file-path)))
-                                                            (org-collect-code-todos--find-or-create-heading
-                                                             file (list "Code TODOs" file-heading))
-                                                            (insert "\n")
-                                                            (insert "*** " heading)
-                                                            (org-set-property "TODO_ID" todo-id)
-                                                            ;; Use org-entry-properties-from-alist instead of org-set-property for FILE
-                                                            (org-entry-put (point) "FILE_PATH" file-path)
-                                                            (when scheduled
-                                                              (org-schedule nil scheduled))
-                                                            (when deadline
-                                                              (org-deadline nil deadline))))))))))
+                                                          ;; Find or create the main "Code TODOs" heading
+                                                          (org-collect-code-todos--find-or-create-heading file (list "Code TODOs"))
+                                                          (insert "\n")
+                                                          (insert "** " heading)
+                                                          (org-set-property "TODO_ID" todo-id)
+                                                          (org-entry-put (point) "FILE_PATH" file-path)
+                                                          (when scheduled
+                                                            (org-schedule nil scheduled))
+                                                          (when deadline
+                                                            (org-deadline nil deadline)))))))))
 
 (defun org-collect-code-todos--find-todo-in-source-file (file-path todo-id)
   "Find a TODO with TODO-ID in FILE-PATH.
@@ -409,8 +406,7 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
     (org-collect-code-todos--with-writable-buffer
      (current-buffer)
      (lambda ()
-       (let ((file-heading (file-name-nondirectory file-path))
-             (active-ids (mapcar (lambda (todo-info)
+       (let ((active-ids (mapcar (lambda (todo-info)
                                    (let* ((todo-line (car todo-info))
                                           (following-lines (cadr todo-info))
                                           (org-data (org-collect-code-todos--source-to-org todo-line following-lines))
@@ -419,58 +415,31 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
                                  todos))
              (orphaned-todos nil))
 
-         ;; Find the file's section in the org file
+         ;; Scan the entire file for TODOs belonging to this file path
          (goto-char (point-min))
-         (when (re-search-forward
-                (format "^\\* Code TODOs\\s-*\n\\s-*\\*\\* %s" (regexp-quote file-heading))
-                nil t)
-           (let ((section-start (match-beginning 0))
-                 (section-end (save-excursion
-                                (org-end-of-subtree t t)
-                                (point))))
+         (org-map-entries
+          (lambda ()
+            (let ((todo-id (org-entry-get nil "TODO_ID"))
+                  (todo-file-path (org-entry-get nil "FILE_PATH")))
+              ;; Check if TODO belongs to current file and isn't active
+              (when (and todo-id
+                         todo-file-path
+                         (string= todo-file-path file-path)
+                         (not (member todo-id active-ids)))
+                (org-collect-code-todos--debug "Found orphaned TODO: %s" todo-id)
+                (push (point) orphaned-todos))))
+          nil 'file)
 
-             ;; Go to start of file's section
-             (goto-char section-start)
-             (org-next-visible-heading 1)  ; Move to first heading
-
-             ;; Scan through all level-3 headings in this section
-             (while (< (point) section-end)
-               (when (= (org-outline-level) 3)  ; Level 3 = TODO entry
-                 (let* ((todo-start (point))
-                        (todo-id (org-entry-get nil "TODO_ID"))
-                        (todo-file-path (org-entry-get nil "FILE_PATH")))
-
-                   ;; Check if TODO belongs to current file and isn't active
-                   (when (and todo-id
-                              todo-file-path
-                              (string= todo-file-path file-path)
-                              (not (member todo-id active-ids)))
-                     (org-collect-code-todos--debug "Found orphaned TODO: %s" todo-id)
-                     (push (cons todo-start todo-id) orphaned-todos))))
-               (org-next-visible-heading 1))
-
-             ;; Delete orphaned TODOs in reverse order
-             (setq orphaned-todos (nreverse orphaned-todos))
-             (dolist (orphan orphaned-todos)
-               (let ((pos (car orphan))
-                     (id (cdr orphan)))
-                 (org-collect-code-todos--debug "Deleting orphaned TODO: %s" id)
-                 (goto-char pos)
-                 (org-mark-subtree)
-                 (delete-region (region-beginning) (region-end))
-                 (when (looking-at "\n")
-                   (delete-char 1))))
-
-             ;; Delete empty file section if needed
-             (goto-char section-start)
-             (when (re-search-forward (format "^\\*\\* %s$" (regexp-quote file-heading)) nil t)
-               (let ((heading-start (match-beginning 0)))
-                 (org-end-of-subtree t t)
-                 (if (= (count-lines heading-start (point)) 1)
-                     (progn
-                       (org-collect-code-todos--debug "Deleting empty file section: %s" file-heading)
-                       (goto-char heading-start)
-                       (delete-region heading-start (1+ (point))))))))))))))
+         ;; Delete orphaned TODOs in reverse order
+         (setq orphaned-todos (nreverse orphaned-todos))
+         (dolist (pos orphaned-todos)
+           (goto-char pos)
+           (let ((id (org-entry-get nil "TODO_ID")))
+             (org-collect-code-todos--debug "Deleting orphaned TODO: %s" id)
+             (org-mark-subtree)
+             (delete-region (region-beginning) (region-end))
+             (when (looking-at "\n")
+               (delete-char 1)))))))))
 
 
 (defun org-collect-code-todos--update-todos-on-save ()
