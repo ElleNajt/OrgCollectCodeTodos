@@ -148,23 +148,35 @@ Returns a cons cell with (heading . properties-alist)."
 
 (defun org-collect-code-todos--extract-todo-info (line-start line-end)
   "Extract TODO information from region between LINE-START and LINE-END.
-Returns a list of (todo-line following-lines) or nil if no TODO found."
+Returns a list of (todo-line following-lines todo-start) or nil if no TODO found,
+where todo-start is the position where the TODO comment starts."
   (org-collect-code-todos--debug "Extracting TODO info from lines %d-%d" line-start line-end)
   (let ((lines (split-string (buffer-substring-no-properties line-start line-end) "\n"))
-        todo-line following-lines)
+        todo-line following-lines todo-start)
     (when lines
       (setq todo-line (car lines))
-      (when (and todo-line (string-match "\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]" todo-line))
-        (setq following-lines (cdr lines))
-        ;; Filter following lines to only include those with scheduling info
-        (setq following-lines 
-              (seq-filter (lambda (line) 
-                            (or (string-match "SCHEDULED:" line)
-                                (string-match "DEADLINE:" line)))
-                          following-lines))
-        (org-collect-code-todos--debug "Found TODO: %s" todo-line)
-        (org-collect-code-todos--debug "Following lines: %s" following-lines)
-        (list todo-line following-lines)))))
+      (when (and todo-line 
+                 (string-match (concat "\\(.*?\\)\\(" 
+                                       (regexp-quote (org-collect-code-todos--get-comment-prefix))
+                                       "\\s-*\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\].*\\)") 
+                               todo-line))
+        (let ((prefix (match-string 1 todo-line))
+              (todo-part (match-string 2 todo-line)))
+          ;; Calculate the position where the TODO comment starts
+          (setq todo-start (+ line-start (length prefix)))
+          ;; Update todo-line to only include the TODO part
+          (setq todo-line todo-part)
+          (setq following-lines (cdr lines))
+          ;; Filter following lines to only include those with scheduling info
+          (setq following-lines 
+                (seq-filter (lambda (line) 
+                              (or (string-match "SCHEDULED:" line)
+                                  (string-match "DEADLINE:" line)))
+                            following-lines))
+          (org-collect-code-todos--debug "Found TODO: %s" todo-line)
+          (org-collect-code-todos--debug "Following lines: %s" following-lines)
+          (org-collect-code-todos--debug "TODO starts at position: %d" todo-start)
+          (list todo-line following-lines todo-start))))))
 
 (defun org-collect-code-todos--create-todo-with-id (todo-text)
   "Create a new TODO with TODO-TEXT and a generated ID.
@@ -191,7 +203,7 @@ Only works in programming modes."
       (save-excursion
         ;; First, look for TODOs with IDs
         (goto-char (point-min))
-        (while (re-search-forward (concat "^" comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]") nil t)
+        (while (re-search-forward (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]") nil t)
           (let* ((line-start (line-beginning-position))
                  (line-end (line-end-position))
                  (next-line-start (1+ line-end))
@@ -213,7 +225,7 @@ Only works in programming modes."
         
         ;; Then, look for regular TODOs without IDs and assign IDs to them
         (goto-char (point-min))
-        (let ((todo-regexp (concat "^"  comment-prefix "\\s-*\\(TODO\\|DONE\\)\\s-+\\([^[].*\\)$")))
+        (let ((todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\s-+\\([^[].*\\)$")))
           (while (re-search-forward todo-regexp nil t)
             (let* ((todo-state (match-string 1))
                    (todo-text (string-trim (match-string 2)))
@@ -231,8 +243,8 @@ Only works in programming modes."
               (save-excursion
                 (forward-line 1)
                 (while (and (not (eobp))
-                            (looking-at (concat comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
-                            (not (looking-at (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
+                            (looking-at (concat "^" comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
+                            (not (looking-at (concat "^" comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
                   (setq following-lines-end (line-end-position))
                   (forward-line 1)))
               
@@ -461,7 +473,7 @@ Returns a cons cell (point . end-point) or nil if not found."
                   (end (cdr todo-pos))
                   ;; Temporarily disable after-save-hook to prevent infinite loop
                   (after-save-hook nil))
-              ;; Replace the old TODO with the new one
+              ;; Replace only the TODO part, preserving any text before it
               (delete-region start end)
               (goto-char start)
               (org-collect-code-todos--debug "Inserting into source file: '%s'" 
