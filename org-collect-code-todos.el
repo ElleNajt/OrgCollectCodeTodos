@@ -20,6 +20,7 @@
 ;; Debugging function
 (defun org-collect-code-todos--debug (message &rest args)
   "Write debug MESSAGE with ARGS to debug log file."
+  (message (apply #'format message args))
   (with-temp-buffer
     (insert (format "%s: " (format-time-string "%Y-%m-%d %H:%M:%S")))
     (insert (apply #'format message args))
@@ -59,10 +60,10 @@ Returns a list of strings, one for each line of the TODO comment."
          (deadline (cdr (assoc "DEADLINE" org-properties)))
          (comment-prefix (org-collect-code-todos--get-comment-prefix))
          (result (list (format "%s %s[%s] %s" 
-                              comment-prefix 
-                              todo-state 
-                              todo-id 
-                              todo-text))))
+                               comment-prefix
+                               todo-state
+                               todo-id
+                               todo-text))))
     
     (when scheduled
       (push (format "%s SCHEDULED: %s" comment-prefix scheduled) (cdr result)))
@@ -87,8 +88,8 @@ Returns a cons cell with (heading . properties-alist)."
     (when (string-match "\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\] \\(.*\\)" todo-line)
       (setq todo-id (match-string 2 todo-line))
       (setq heading (format "%s %s" 
-                           (match-string 1 todo-line)
-                           (match-string 3 todo-line)))
+                            (match-string 1 todo-line)
+                            (match-string 3 todo-line)))
       (push (cons "TODO_ID" todo-id) properties))
     
     ;; Process following lines for scheduling info
@@ -188,10 +189,10 @@ Only works in programming modes."
                    (following-lines-end line-end)
                    (id (org-collect-code-todos--generate-uuid))
                    (new-todo-line (format "%s %s[%s] %s" 
-                                         comment-prefix 
-                                         todo-state 
-                                         id 
-                                         todo-text)))
+                                          comment-prefix
+                                          todo-state
+                                          id
+                                          todo-text)))
               
               ;; Look for following comment lines with scheduling info
               (save-excursion
@@ -243,27 +244,27 @@ Returns the point at the end of the heading line."
   (org-collect-code-todos--debug "Finding or creating heading: %s" heading-path)
   (with-current-buffer (find-file-noselect file)
     (org-collect-code-todos--with-writable-buffer (current-buffer)
-      (lambda ()
-        (goto-char (point-min))
-        (let ((current-level 1))
-          (dolist (heading heading-path)
-            (let ((heading-regexp (format "^\\*\\{%d\\} %s$" current-level (regexp-quote heading))))
-              (if (re-search-forward heading-regexp nil t)
-                  (progn
-                    (org-collect-code-todos--debug "Found existing heading: %s" heading)
-                    (end-of-line))
-                (progn
-                  (org-collect-code-todos--debug "Creating new heading: %s" heading)
-                  (if (= current-level 1)
-                      (progn
-                        (goto-char (point-max))
-                        (unless (bolp) (insert "\n")))
-                    (org-end-of-subtree t t)
-                    (insert "\n"))
-                  (insert (make-string current-level ?*) " " heading)
-                  (end-of-line))))
-            (setq current-level (1+ current-level))))
-        (point)))))
+                                                  (lambda ()
+                                                    (goto-char (point-min))
+                                                    (let ((current-level 1))
+                                                      (dolist (heading heading-path)
+                                                        (let ((heading-regexp (format "^\\*\\{%d\\} %s$" current-level (regexp-quote heading))))
+                                                          (if (re-search-forward heading-regexp nil t)
+                                                              (progn
+                                                                (org-collect-code-todos--debug "Found existing heading: %s" heading)
+                                                                (end-of-line))
+                                                            (progn
+                                                              (org-collect-code-todos--debug "Creating new heading: %s" heading)
+                                                              (if (= current-level 1)
+                                                                  (progn
+                                                                    (goto-char (point-max))
+                                                                    (unless (bolp) (insert "\n")))
+                                                                (org-end-of-subtree t t)
+                                                                (insert "\n"))
+                                                              (insert (make-string current-level ?*) " " heading)
+                                                              (end-of-line))))
+                                                        (setq current-level (1+ current-level))))
+                                                    (point)))))
 
 (defun org-collect-code-todos--find-todo-by-id (file todo-id)
   "Find a TODO with TODO-ID in FILE.
@@ -296,33 +297,33 @@ TODO-INFO is (todo-line following-lines)."
     
     (with-current-buffer (find-file-noselect file)
       (org-collect-code-todos--with-writable-buffer (current-buffer)
-        (lambda ()
-          (if todo-point
-              ;; Update existing TODO
-              (progn
-                (org-collect-code-todos--debug "Updating existing TODO: %s" heading)
-                (goto-char todo-point)
-                (org-edit-headline heading)
-                (when scheduled
-                  (org-schedule nil scheduled))
-                (when deadline
-                  (org-deadline nil deadline)))
-            ;; Create new TODO
-            (progn
-              (org-collect-code-todos--debug "Creating new TODO: %s" heading)
-              ;; Find or create file heading
-              (let ((file-heading (file-name-nondirectory file-path)))
-                (org-collect-code-todos--find-or-create-heading 
-                 file (list "Code TODOs" file-heading))
-                (insert "\n")
-                (insert "** " heading)
-                (org-set-property "TODO_ID" todo-id)
-                ;; Use org-entry-properties-from-alist instead of org-set-property for FILE
-                (org-entry-put (point) "FILE_PATH" file-path)
-                (when scheduled
-                  (org-schedule nil scheduled))
-                (when deadline
-                  (org-deadline nil deadline))))))))))
+                                                    (lambda ()
+                                                      (if todo-point
+                                                          ;; Update existing TODO
+                                                          (progn
+                                                            (org-collect-code-todos--debug "Updating existing TODO: %s" heading)
+                                                            (goto-char todo-point)
+                                                            (org-edit-headline heading)
+                                                            (when scheduled
+                                                              (org-schedule nil scheduled))
+                                                            (when deadline
+                                                              (org-deadline nil deadline)))
+                                                        ;; Create new TODO
+                                                        (progn
+                                                          (org-collect-code-todos--debug "Creating new TODO: %s" heading)
+                                                          ;; Find or create file heading
+                                                          (let ((file-heading (file-name-nondirectory file-path)))
+                                                            (org-collect-code-todos--find-or-create-heading
+                                                             file (list "Code TODOs" file-heading))
+                                                            (insert "\n")
+                                                            (insert "** " heading)
+                                                            (org-set-property "TODO_ID" todo-id)
+                                                            ;; Use org-entry-properties-from-alist instead of org-set-property for FILE
+                                                            (org-entry-put (point) "FILE_PATH" file-path)
+                                                            (when scheduled
+                                                              (org-schedule nil scheduled))
+                                                            (when deadline
+                                                              (org-deadline nil deadline))))))))))
 
 (defun org-collect-code-todos--find-todo-in-source-file (file-path todo-id)
   "Find a TODO with TODO-ID in FILE-PATH.
@@ -335,7 +336,7 @@ Returns a cons cell (point . end-point) or nil if not found."
         (let ((comment-prefix (org-collect-code-todos--get-comment-prefix))
               (case-fold-search nil)
               (todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\[" 
-                                  (regexp-quote todo-id) "\\]"))
+                                   (regexp-quote todo-id) "\\]"))
               start end)
           (when (re-search-forward todo-regexp nil t)
             (setq start (line-beginning-position))
@@ -367,11 +368,13 @@ Returns a cons cell (point . end-point) or nil if not found."
            (org-props (append
                        (list (cons "TODO_ID" todo-id))
                        (when scheduled (list (cons "SCHEDULED" scheduled)))
-                       (when deadline (list (cons "DEADLINE" deadline)))))
-           (source-lines (org-collect-code-todos--org-to-source org-heading org-props)))
+                       (when deadline (list (cons "DEADLINE" deadline))))))
       
       (with-current-buffer (find-file-noselect file-path)
-        (let ((todo-pos (org-collect-code-todos--find-todo-in-source-file file-path todo-id)))
+        (let (
+              (source-lines (org-collect-code-todos--org-to-source org-heading org-props))
+
+              (todo-pos (org-collect-code-todos--find-todo-in-source-file file-path todo-id)))
           (when todo-pos
             (let ((start (car todo-pos))
                   (end (cdr todo-pos)))
