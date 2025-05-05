@@ -235,9 +235,18 @@ Only works in programming modes."
       (org-collect-code-todos--debug "Found %d TODOs in buffer" (length todos))
       todos)))
 
+(defcustom org-collect-code-todos-file nil
+  "File for storing code TODOs.
+If nil, defaults to code-todos.org in the project root or current directory."
+  :type '(choice (file :tag "File path")
+          (const :tag "Default location" nil))
+  :group 'org-collect-code-todos)
+
 (defun org-collect-code-todos--get-org-file-path ()
   "Get the path to the org file for storing TODOs."
-  (expand-file-name "code-todos.org" (or (projectile-project-root) default-directory)))
+  (or org-collect-code-todos-file
+      (expand-file-name "code-todos.org"
+                        (or (projectile-project-root) default-directory))))
 
 (defun org-collect-code-todos--ensure-org-file-exists ()
   "Ensure the org file for TODOs exists with proper structure."
