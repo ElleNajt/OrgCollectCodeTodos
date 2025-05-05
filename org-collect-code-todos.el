@@ -55,7 +55,8 @@ Returns a list of strings, one for each line of the TODO comment."
          (todo-state (if (string-match "^\\(TODO\\|DONE\\) " org-heading)
                          (match-string 1 org-heading)
                        "TODO"))
-         (todo-text (replace-regexp-in-string "^\\(TODO\\|DONE\\) " "" org-heading))
+         (todo-text (replace-regexp-in-string "^[ \t]*\\(TODO\\|DONE\\) " "" org-heading))
+         (_ (message "todo text: %s" todo-text))
          (scheduled (cdr (assoc "SCHEDULED" org-properties)))
          (deadline (cdr (assoc "DEADLINE" org-properties)))
          (comment-prefix (org-collect-code-todos--get-comment-prefix))
@@ -72,8 +73,8 @@ Returns a list of strings, one for each line of the TODO comment."
           (setq schedule-line (concat schedule-line " SCHEDULED: " scheduled)))
         (when deadline
           (setq schedule-line (concat schedule-line 
-                                     (if scheduled " " "")
-                                     "DEADLINE: " deadline)))
+                                      (if scheduled " " "")
+                                      "DEADLINE: " deadline)))
         (push schedule-line (cdr result))))
     
     (org-collect-code-todos--debug "Converted to source format: %s" result)
@@ -95,6 +96,7 @@ Returns a cons cell with (heading . properties-alist)."
       (setq heading (format "%s %s" 
                             (match-string 1 todo-line)
                             (match-string 3 todo-line)))
+      (message "heading: %s" heading)
       (push (cons "TODO_ID" todo-id) properties))
     
     ;; Process following lines for scheduling info
@@ -290,6 +292,7 @@ Returns the point at the beginning of the heading, or nil if not found."
   "In FILE, update or create a TODO from TODO-INFO for source at FILE-PATH.
 TODO-INFO is (todo-line following-lines)."
   (org-collect-code-todos--debug "Updating or creating TODO from: %s" todo-info)
+
   (let* ((todo-line (car todo-info))
          (following-lines (cadr todo-info))
          (org-data (org-collect-code-todos--source-to-org todo-line following-lines))
