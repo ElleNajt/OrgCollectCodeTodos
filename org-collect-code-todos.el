@@ -495,6 +495,39 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 ;;;###autoload
+(defun org-collect-code-todos-goto-org-todo ()
+  "Jump from a TODO in source code to the corresponding TODO in the org file.
+This should be called when point is on a TODO line in a source file."
+  (interactive)
+  (org-collect-code-todos--debug "Attempting to jump to org TODO from source")
+  (let ((line (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+        (todo-id nil))
+    
+    ;; Extract the TODO ID from the current line
+    (when (string-match "\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\]" line)
+      (setq todo-id (match-string 2 line))
+      (org-collect-code-todos--debug "Found TODO ID: %s" todo-id)
+      
+      ;; Open the org file and find the TODO
+      (let ((org-file (org-collect-code-todos--ensure-org-file-exists)))
+        (find-file org-file)
+        (widen)
+        (goto-char (point-min))
+        
+        ;; Search for the TODO with matching ID
+        (if (re-search-forward (format ":TODO_ID: %s" (regexp-quote todo-id)) nil t)
+            (progn
+              (org-reveal)
+              (org-show-entry)
+              (org-collect-code-todos--debug "Successfully jumped to org TODO"))
+          (message "Could not find corresponding TODO in org file")
+          (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id))))
+    
+    (unless todo-id
+      (message "No TODO found at point")
+      (org-collect-code-todos--debug "No TODO ID found at current line"))))
+
+;;;###autoload
 (define-minor-mode org-collect-code-todos-mode
   "Minor mode for collecting code TODOs into an org file."
   :lighter " OrgTODO"
