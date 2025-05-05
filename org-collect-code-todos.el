@@ -514,19 +514,24 @@ This should be called when point is on a TODO line in a source file."
         (widen)
         (goto-char (point-min))
         
-        ;; Search for the TODO with matching ID
-        (if (re-search-forward (format ":TODO_ID: %s" (regexp-quote todo-id)) nil t)
-            (progn
-              ;; Move to the beginning of the heading
-              (org-back-to-heading t)
-              ;; Reveal and show the entry
-              (org-reveal)
-              (org-show-entry)
-              (org-show-children)
-              (recenter)
-              (org-collect-code-todos--debug "Successfully jumped to org TODO"))
-          (message "Could not find corresponding TODO in org file")
-          (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id))))
+        ;; Use the same approach as org-collect-code-todos--find-todo-by-id
+        (let ((found nil))
+          (while (and (not found)
+                      (re-search-forward org-heading-regexp nil t))
+            (let ((properties (org-entry-properties)))
+              (when (string= (cdr (assoc "TODO_ID" properties)) todo-id)
+                (setq found (match-beginning 0))
+                (goto-char found)
+                ;; Reveal and show the entry
+                (org-reveal)
+                (org-show-entry)
+                (org-show-children)
+                (recenter)
+                (org-collect-code-todos--debug "Successfully jumped to org TODO"))))
+          
+          (unless found
+            (message "Could not find corresponding TODO in org file")
+            (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id)))))
     
     (unless todo-id
       (message "No TODO found at point")
