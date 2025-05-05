@@ -65,11 +65,16 @@ Returns a list of strings, one for each line of the TODO comment."
                                todo-id
                                todo-text))))
     
-    (when scheduled
-      (push (format "%s SCHEDULED: %s" comment-prefix scheduled) (cdr result)))
-    
-    (when deadline
-      (push (format "%s DEADLINE: %s" comment-prefix deadline) (cdr result)))
+    ;; Add scheduling and deadline info on a single line if either exists
+    (when (or scheduled deadline)
+      (let ((schedule-line (format "%s" comment-prefix)))
+        (when scheduled
+          (setq schedule-line (concat schedule-line " SCHEDULED: " scheduled)))
+        (when deadline
+          (setq schedule-line (concat schedule-line 
+                                     (if scheduled " " "")
+                                     "DEADLINE: " deadline)))
+        (push schedule-line (cdr result))))
     
     (org-collect-code-todos--debug "Converted to source format: %s" result)
     result))
