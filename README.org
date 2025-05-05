@@ -112,24 +112,25 @@ When you mark a TODO as DONE in the Org file, the corresponding comment in your 
 # DONE[d7dab7fc6b277026] This needs optimization
 #+end_src
 
-You can also work directly with TODOs in your source code:
+While the actual TODO state changes and scheduling only happen in the org mode file, we provide convenience functions to work with TODOs directly from your source code:
 
 1. *Toggle TODO/DONE state*:
    - Place your cursor on a TODO line
    - Use `org-collect-code-todos-toggle-todo-state`
-   - The state will toggle between TODO and DONE in both the source and Org file
+   - This finds the corresponding entry in the org file and toggles its state there
+   - The change is then synchronized back to the source code
 
 2. *Schedule a TODO*:
    - Place your cursor on a TODO line
    - Use `org-collect-code-todos-schedule`
-   - Set a date in the minibuffer
-   - The schedule will be added to both the source and Org file
+   - This finds the corresponding entry in the org file and calls `org-schedule` on it
+   - The scheduling information is then synchronized back to the source code
 
 3. *Set a deadline*:
    - Place your cursor on a TODO line
    - Use `org-collect-code-todos-deadline`
-   - Set a date in the minibuffer
-   - The deadline will be added to both the source and Org file
+   - This finds the corresponding entry in the org file and calls `org-deadline` on it
+   - The deadline information is then synchronized back to the source code
 
 4. *Jump to Org entry*:
    - Place your cursor on a TODO line
@@ -141,9 +142,10 @@ You can also work directly with TODOs in your source code:
 The package maintains synchronization through these mechanisms:
 
 1. *File Saving*: When you save a source file, all TODOs are collected and synchronized with the Org file
-2. *State Changes*: When you change a TODO state in either location, the change is propagated to the other
+2. *State Changes*: When you change a TODO state in the org file, the change is propagated to the source code
 3. *ID Tracking*: Each TODO has a unique ID that maintains the connection between source and Org entries
 4. *Orphan Handling*: If a TODO is removed from source code, it's marked as orphaned in the Org file
+5. *Single Source of Truth*: The org file is the authoritative source for TODO states and scheduling information
 
 Make sure to put the code-todos.org file somewhere where your org agenda will scan for it!
 
