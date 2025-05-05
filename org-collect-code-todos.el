@@ -348,46 +348,61 @@ TODO-INFO is (todo-line following-lines)."
                                    heading todo-id)
     
     (with-current-buffer (find-file-noselect file)
-      (org-collect-code-todos--with-writable-buffer (current-buffer)
-                                                    (lambda ()
-                                                      (if todo-point
-                                                          ;; Update existing TODO
-                                                          (progn
-                                                            (org-collect-code-todos--debug "Updating existing TODO: %s" heading)
-                                                            (goto-char todo-point)
-                                                            ;; Extract the TODO state and text from the heading
-                                                            (if (string-match "^\\(TODO\\|DONE\\) \\(.*\\)" heading)
-                                                                (let ((todo-state (match-string 1 heading))
-                                                                      (todo-text (match-string 2 heading)))
-                                                                  (org-collect-code-todos--debug 
-                                                                   "Updating org entry: state='%s', text='%s'" 
-                                                                   todo-state todo-text)
-                                                                  ;; Update the headline first, because updating schedule and todo will trigger an update back
-                                                                  (org-edit-headline todo-text)
-                                                                  ;; Set the TODO state first
-                                                                  (org-todo todo-state))
-                                                              ;; If no TODO state in heading, just update the headline
-                                                              (progn
-                                                                (org-collect-code-todos--debug 
-                                                                 "Updating org entry with just heading: '%s'" heading)
-                                                                (org-edit-headline heading)))
-                                                            (when scheduled
-                                                              (org-schedule nil scheduled))
-                                                            (when deadline
-                                                              (org-deadline nil deadline)))
-                                                        ;; Create new TODO
-                                                        (progn
-                                                          (org-collect-code-todos--debug "Creating new TODO: %s" heading)
-                                                          ;; Find or create the main "Code TODOs" heading
-                                                          (org-collect-code-todos--find-or-create-heading file (list "Code TODOs"))
-                                                          (insert "\n")
-                                                          (insert "** " heading)
-                                                          (org-set-property "TODO_ID" todo-id)
-                                                          (org-entry-put (point) "FILE_PATH" file-path)
-                                                          (when scheduled
-                                                            (org-schedule nil scheduled))
-                                                          (when deadline
-                                                            (org-deadline nil deadline)))))))))
+      (org-collect-code-todos--with-writable-buffer 
+       (current-buffer)
+       (lambda ()
+         ;; Temporarily remove hooks and advice to prevent recursive updates
+         (org-collect-code-todos--debug "Temporarily removing org hooks and advice")
+         (remove-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
+         (advice-remove 'org-schedule #'org-collect-code-todos--sync-todo-to-source-advice)
+         (advice-remove 'org-deadline #'org-collect-code-todos--sync-todo-to-source-advice)
+         
+         (unwind-protect
+             (progn
+               (if todo-point
+                   ;; Update existing TODO
+                   (progn
+                     (org-collect-code-todos--debug "Updating existing TODO: %s" heading)
+                     (goto-char todo-point)
+                     ;; Extract the TODO state and text from the heading
+                     (if (string-match "^\\(TODO\\|DONE\\) \\(.*\\)" heading)
+                         (let ((todo-state (match-string 1 heading))
+                               (todo-text (match-string 2 heading)))
+                           (org-collect-code-todos--debug 
+                            "Updating org entry: state='%s', text='%s'" 
+                            todo-state todo-text)
+                           ;; Update the headline first, because updating schedule and todo will trigger an update back
+                           (org-edit-headline todo-text)
+                           ;; Set the TODO state first
+                           (org-todo todo-state))
+                       ;; If no TODO state in heading, just update the headline
+                       (progn
+                         (org-collect-code-todos--debug 
+                          "Updating org entry with just heading: '%s'" heading)
+                         (org-edit-headline heading)))
+                     (when scheduled
+                       (org-schedule nil scheduled))
+                     (when deadline
+                       (org-deadline nil deadline)))
+                 ;; Create new TODO
+                 (progn
+                   (org-collect-code-todos--debug "Creating new TODO: %s" heading)
+                   ;; Find or create the main "Code TODOs" heading
+                   (org-collect-code-todos--find-or-create-heading file (list "Code TODOs"))
+                   (insert "\n")
+                   (insert "** " heading)
+                   (org-set-property "TODO_ID" todo-id)
+                   (org-entry-put (point) "FILE_PATH" file-path)
+                   (when scheduled
+                     (org-schedule nil scheduled))
+                   (when deadline
+                     (org-deadline nil deadline)))))
+           
+           ;; Restore hooks and advice
+           (org-collect-code-todos--debug "Restoring org hooks and advice")
+           (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
+           (advice-add 'org-schedule :after #'org-collect-code-todos--sync-todo-to-source-advice)
+           (advice-add 'org-deadline :after #'org-collect-code-todos--sync-todo-to-source-advice)))))))
 
 (defun org-collect-code-todos--find-todo-in-source-file (file-path todo-id)
   "Find a TODO with TODO-ID in FILE-PATH.
