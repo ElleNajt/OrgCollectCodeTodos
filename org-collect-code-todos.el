@@ -505,12 +505,32 @@ Ignores any arguments passed to it."
       (setq buffer-read-only t)
       (org-collect-code-todos--debug "Made org file read-only: %s" file-path))))
 
+(defun org-collect-code-todos--with-writable-org-file (fn)
+  "Execute FN with the org TODOs file temporarily writable.
+Restores the read-only state after execution."
+  (org-collect-code-todos--debug "Making org file temporarily writable")
+  (let ((was-read-only buffer-read-only)
+        (inhibit-read-only t))
+    (unwind-protect
+        (progn
+          (setq buffer-read-only nil)
+          (funcall fn))
+      (when was-read-only
+        (setq buffer-read-only t)
+        (org-collect-code-todos--debug "Restored org file read-only state")))))
+
 (defun org-collect-code-todos--setup-org-hooks ()
   "Set up hooks and advice for org-mode synchronization."
   (org-collect-code-todos--debug "Setting up org hooks and advice")
   (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
   (advice-add 'org-schedule :after #'org-collect-code-todos--sync-todo-to-source-advice)
   (advice-add 'org-deadline :after #'org-collect-code-todos--sync-todo-to-source-advice)
+  
+  ;; Add advice to temporarily make the org file writable for these operations
+  (advice-add 'org-todo :around #'org-collect-code-todos--make-writable-advice)
+  (advice-add 'org-schedule :around #'org-collect-code-todos--make-writable-advice)
+  (advice-add 'org-deadline :around #'org-collect-code-todos--make-writable-advice)
+  
   (add-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 (defun org-collect-code-todos--remove-org-hooks ()
@@ -519,6 +539,12 @@ Ignores any arguments passed to it."
   (remove-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
   (advice-remove 'org-schedule #'org-collect-code-todos--sync-todo-to-source-advice)
   (advice-remove 'org-deadline #'org-collect-code-todos--sync-todo-to-source-advice)
+  
+  ;; Remove the writable advice
+  (advice-remove 'org-todo #'org-collect-code-todos--make-writable-advice)
+  (advice-remove 'org-schedule #'org-collect-code-todos--make-writable-advice)
+  (advice-remove 'org-deadline #'org-collect-code-todos--make-writable-advice)
+  
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 ;;;###autoload
@@ -563,6 +589,15 @@ This should be called when point is on a TODO line in a source file."
     (unless todo-id
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
+
+(defun org-collect-code-todos--make-writable-advice (orig-fun &rest args)
+  "Advice to make the org file temporarily writable during execution of ORIG-FUN with ARGS."
+  (if (and (buffer-file-name)
+           (string= (expand-file-name (buffer-file-name))
+                    (expand-file-name (org-collect-code-todos--get-org-file-path))))
+      (org-collect-code-todos--with-writable-org-file
+       (lambda () (apply orig-fun args)))
+    (apply orig-fun args)))
 
 ;;;###autoload
 (define-minor-mode org-collect-code-todos-mode
