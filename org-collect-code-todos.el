@@ -609,17 +609,14 @@ This should be called when point is on a TODO line in a source file."
   (org-collect-code-todos--debug "Toggling TODO state from source")
   (let ((todo-id (org-collect-code-todos--get-todo-id-at-point)))
     (if todo-id
-        (let ((current-buffer (current-buffer))
-              (current-point (point)))
-          (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
-            ;; Toggle the TODO state
-            (org-collect-code-todos--with-writable-org-file
-             (lambda ()
-               (org-todo)
-               (message "Toggled TODO state")))
-            ;; Return to the source buffer
-            (switch-to-buffer current-buffer)
-            (goto-char current-point)))
+        (save-excursion
+          (save-current-buffer
+            (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
+              ;; Toggle the TODO state
+              (org-collect-code-todos--with-writable-org-file
+               (lambda ()
+                 (org-todo)
+                 (message "Toggled TODO state"))))))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
@@ -630,17 +627,14 @@ This should be called when point is on a TODO line in a source file."
   (org-collect-code-todos--debug "Scheduling TODO from source")
   (let ((todo-id (org-collect-code-todos--get-todo-id-at-point)))
     (if todo-id
-        (let ((current-buffer (current-buffer))
-              (current-point (point)))
-          (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
-            ;; Schedule the TODO
-            (org-collect-code-todos--with-writable-org-file
-             (lambda ()
-               (call-interactively 'org-schedule)
-               (message "Scheduled TODO")))
-            ;; Return to the source buffer
-            (switch-to-buffer current-buffer)
-            (goto-char current-point)))
+        (save-excursion
+          (save-current-buffer
+            (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
+              ;; Schedule the TODO
+              (org-collect-code-todos--with-writable-org-file
+               (lambda ()
+                 (call-interactively 'org-schedule)
+                 (message "Scheduled TODO"))))))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
@@ -651,17 +645,14 @@ This should be called when point is on a TODO line in a source file."
   (org-collect-code-todos--debug "Setting deadline for TODO from source")
   (let ((todo-id (org-collect-code-todos--get-todo-id-at-point)))
     (if todo-id
-        (let ((current-buffer (current-buffer))
-              (current-point (point)))
-          (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
-            ;; Set deadline for the TODO
-            (org-collect-code-todos--with-writable-org-file
-             (lambda ()
-               (call-interactively 'org-deadline)
-               (message "Set deadline for TODO")))
-            ;; Return to the source buffer
-            (switch-to-buffer current-buffer)
-            (goto-char current-point)))
+        (save-excursion
+          (save-current-buffer
+            (when (org-collect-code-todos--find-and-goto-org-todo todo-id)
+              ;; Set deadline for the TODO
+              (org-collect-code-todos--with-writable-org-file
+               (lambda ()
+                 (call-interactively 'org-deadline)
+                 (message "Set deadline for TODO"))))))
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
