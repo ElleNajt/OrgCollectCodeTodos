@@ -492,6 +492,10 @@ Returns (point . end-point) and prefix text, or nil if not found."
            (properties (org-entry-properties))
            (scheduled (cdr (assoc "SCHEDULED" properties)))
            (deadline (cdr (assoc "DEADLINE" properties)))
+           ;; Extract the text from the link if present
+           (todo-text (if (string-match "\\[\\[file:.*?\\]\\[\\(.*?\\)\\]\\]" heading)
+                          (match-string 1 heading)
+                        heading))
            (org-heading (if todo-state
                             (concat todo-state " " heading)
                           heading))
@@ -514,12 +518,12 @@ Returns (point . end-point) and prefix text, or nil if not found."
           (when todo-info
             (let ((after-save-hook nil)
                   (source-lines (list
-                                 ;; First line with TODO - use full prefix
+                                 ;; First line with TODO - use full prefix and extracted text
                                  (format "%s%s[%s] %s"
                                          prefix-text
                                          todo-state
                                          todo-id
-                                         heading))))
+                                         todo-text))))
 
               ;; Add scheduling/deadline info with just indentation + comment prefix
               (when (or scheduled deadline)
