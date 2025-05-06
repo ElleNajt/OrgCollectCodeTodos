@@ -14,6 +14,15 @@ This should work in any prog-mode, but there are various tricky things around in
 
 Install and enable `org-collect-code-todos-mode`
 
+For instance,
+
+#+begin_src emacs-lisp :tangle yes
+(require
+ 'org-collect-code-todos)
+
+(add-hook! 'doom-init-ui-hook #'org-collect-code-todos-mode)
+#+end_src
+
 ** Configuration
 
 #+begin_src emacs-lisp :tangle yes
