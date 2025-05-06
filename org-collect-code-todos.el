@@ -97,7 +97,10 @@ Returns a list of strings, one for each line of the TODO comment."
          (todo-state (if (string-match "^\\(TODO\\|DONE\\) " org-heading)
                          (match-string 1 org-heading)
                        "TODO"))
-         (todo-text (replace-regexp-in-string "^[ \t]*\\(TODO\\|DONE\\) " "" org-heading))
+         ;; Extract text from between the link brackets if present
+         (todo-text (if (string-match "\\[\\[file:.*?\\]\\[\\(.*?\\)\\]\\]" org-heading)
+                        (match-string 1 org-heading)
+                      (replace-regexp-in-string "^[ \t]*\\(TODO\\|DONE\\) " "" org-heading)))
          (_ (org-collect-code-todos--message "todo text: %s" todo-text))
          (scheduled (cdr (assoc "SCHEDULED" org-properties)))
          (deadline (cdr (assoc "DEADLINE" org-properties)))
@@ -135,18 +138,21 @@ Returns a cons cell with (heading . properties-alist)."
         heading
         todo-id
         scheduled
-        deadline)
+        deadline
+        (file-path (buffer-file-name)))
     
     ;; Extract TODO ID and text from the main line
     (when (string-match "\\(TODO\\|DONE\\)\\[\\([^]]+\\)\\] \\(.*\\)" todo-line)
-      (setq todo-id (match-string 2 todo-line))
-      (setq heading (format "%s %s" 
-                            (match-string 1 todo-line)
-                            (match-string 3 todo-line)))
-      (org-collect-code-todos--debug "Extracted heading from source: '%s'" heading)
-      (org-collect-code-todos--debug "Extracted TODO ID from source: '%s'" todo-id)
-      (org-collect-code-todos--message "heading: %s" heading)
-      (push (cons "TODO_ID" todo-id) properties))
+      (let ((state (match-string 1 todo-line))
+            (id (match-string 2 todo-line))
+            (text (match-string 3 todo-line)))
+        (setq todo-id id)
+        ;; Create heading with file link
+        (setq heading (format "%s [[file:%s][%s]]" state file-path text))
+        (org-collect-code-todos--debug "Extracted heading from source: '%s'" heading)
+        (org-collect-code-todos--debug "Extracted TODO ID from source: '%s'" todo-id)
+        (org-collect-code-todos--message "heading: %s" heading)
+        (push (cons "TODO_ID" todo-id) properties)))
     
     ;; Process following lines for scheduling info
     (when following-lines
