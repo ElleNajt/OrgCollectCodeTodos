@@ -421,8 +421,7 @@ TODO-INFO is (todo-line following-lines)."
 
 (defun org-collect-code-todos--find-todo-in-source-file (file-path todo-id)
   "Find a TODO with TODO-ID in FILE-PATH.
-Returns a cons cell (point . end-point) or nil if not found,
-where point is the position where the TODO comment starts."
+Returns (point . end-point) and prefix text, or nil if not found."
   (org-collect-code-todos--debug "Finding TODO with ID %s in file %s" todo-id file-path)
   (when (and file-path (file-exists-p file-path))
     (with-current-buffer (find-file-noselect file-path)
@@ -432,24 +431,28 @@ where point is the position where the TODO comment starts."
                (case-fold-search nil)
                (todo-regexp (concat comment-prefix "\\s-*\\(TODO\\|DONE\\)\\["
                                     (regexp-quote todo-id) "\\]"))
-               start end)
+               start end prefix-text)
           (when (re-search-forward todo-regexp nil t)
-            ;; Find the start of the TODO comment, not the line
-            (setq start (save-excursion
-                          (goto-char (match-beginning 0))
-                          (point)))
+            ;; Get all text before the TODO
+            (save-excursion
+              (beginning-of-line)
+              (setq start (point))
+              (re-search-forward "\\(TODO\\|DONE\\)\\[" (line-end-position) t)
+              (setq prefix-text (buffer-substring-no-properties start (match-beginning 0))))
+
             (setq end (line-end-position))
-            
-            ;; Look for following comment lines with scheduling info
+
+            ;; Look for following comment lines with scheduling/deadline info
             (save-excursion
               (forward-line 1)
               (while (and (not (eobp))
-                          (looking-at (concat "^" comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
-                          (not (looking-at (concat "^" comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
+                          (looking-at (concat "^\\s-*" comment-prefix "\\s-*\\(SCHEDULED\\|DEADLINE\\):"))
+                          (not (looking-at (concat "^\\s-*" comment-prefix "\\s-*\\(TODO\\|DONE\\)"))))
                 (setq end (line-end-position))
                 (forward-line 1)))
-            
-            (cons start (1+ end))))))))
+
+            (list start (1+ end) prefix-text)))))))
+
 
 (defun org-collect-code-todos--update-todo-in-source-file (file-path todo-id)
   "Update TODO with TODO-ID in FILE-PATH from current org entry."
@@ -467,26 +470,45 @@ where point is the position where the TODO comment starts."
                        (list (cons "TODO_ID" todo-id))
                        (when scheduled (list (cons "SCHEDULED" scheduled)))
                        (when deadline (list (cons "DEADLINE" deadline))))))
-      
-      (org-collect-code-todos--debug "Org entry for source update: raw heading='%s', todo-state='%s'" 
-                                     heading todo-state)
-      (org-collect-code-todos--debug "Constructed org heading for source: '%s'" org-heading)
-      
+
       (with-current-buffer (find-file-noselect file-path)
-        (let ((source-lines (org-collect-code-todos--org-to-source org-heading org-props))
-              (todo-pos (org-collect-code-todos--find-todo-in-source-file file-path todo-id)))
-          (when todo-pos
-            (let ((start (car todo-pos))
-                  (end (cdr todo-pos))
-                  ;; Temporarily disable after-save-hook to prevent infinite loop
-                  (after-save-hook nil))
-              ;; Replace only the TODO part, preserving any text before it
+        (let* ((todo-info (org-collect-code-todos--find-todo-in-source-file file-path todo-id))
+               (start (nth 0 todo-info))
+               (end (nth 1 todo-info))
+               (prefix-text (nth 2 todo-info))
+               (comment-prefix (org-collect-code-todos--get-comment-prefix))
+               ;; Extract just the indentation from prefix-text
+               (indentation (if (string-match "^\\([ \t]*\\)" prefix-text)
+                                (match-string 1 prefix-text)
+                              "")))
+
+          (when todo-info
+            (let ((after-save-hook nil)
+                  (source-lines (list
+                                 ;; First line with TODO - use full prefix
+                                 (format "%s%s[%s] %s"
+                                         prefix-text
+                                         todo-state
+                                         todo-id
+                                         heading))))
+
+              ;; Add scheduling/deadline info with just indentation + comment prefix
+              (when (or scheduled deadline)
+                (let ((schedule-line (format "%s%s" indentation comment-prefix)))
+                  (when scheduled
+                    (setq schedule-line (concat schedule-line " SCHEDULED: " scheduled)))
+                  (when deadline
+                    (setq schedule-line (concat schedule-line
+                                                (if scheduled " " "")
+                                                "DEADLINE: " deadline)))
+                  (setq source-lines (append source-lines (list schedule-line)))))
+
+              ;; Replace the content
               (delete-region start end)
               (goto-char start)
-              (org-collect-code-todos--debug "Inserting into source file: '%s'" 
-                                             (string-join source-lines "\n"))
               (insert (string-join source-lines "\n") "\n")
               (save-buffer))))))))
+
 
 (defun org-collect-code-todos--delete-orphaned-todos (file file-path todos)
   "Delete TODOs in FILE for FILE-PATH that are not in TODOS list.
