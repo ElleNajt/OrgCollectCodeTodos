@@ -10,7 +10,7 @@ Large amounts of this were written by Claude 3.7 using aider.
 
 ** Setup:
 
-Install and enable org-collect-code-todos-mode
+Install and enable `org-collect-code-todos-mode`
 
 ** Configuration
 
@@ -111,9 +111,5 @@ While the actual TODO toggle function calls and scheduling only happen in the or
    - Use `org-collect-code-todos-goto-org-todo`
    - Emacs will open the Org file and jump to the corresponding entry
 
-
-
-
 * Planned work:
 - [ ] Implement a way to repair file paths if they move, e.g. by tracking git renames.
-- [ ] Handle ;; TODOs with text in front of them, e.g. code or whitespace.
