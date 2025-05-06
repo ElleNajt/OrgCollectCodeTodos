@@ -72,6 +72,13 @@ Higher values reduce collision probability but take up more real estate:
     (python-mode . "#")
     (c-mode . "//")
     (yaml-mode . "#")
+    (dockerfile-mode . "#")
+    (gitignore-mode . "#")
+    (terraform-mode . "#")
+    (conf-mode . "#")
+    (markdown-mode . "<!--")
+    ;; (markdown-mode . "#") ;; To support org mode TODOs in markdown
+    ;; TODO[e5q2Hn059z] find a way to handle multiple prefixes
     (c++-mode . "//")
     (java-mode . "//")
     (js-mode . "//")
