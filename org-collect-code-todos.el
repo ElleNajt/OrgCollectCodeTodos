@@ -54,7 +54,6 @@ Always passes the message to the debug function."
                (make-string n ?x)
                "")))
 
-
 (defcustom org-collect-code-todos-id-length 10
   "Length of randomly generated TODO IDs.
 Higher values reduce collision probability but take up more real estate:
@@ -68,16 +67,25 @@ Higher values reduce collision probability but take up more real estate:
   "Generate a unique ID for a TODO item."
   (org-collect-code-todos--base62-encode-random org-collect-code-todos-id-length))
 
+(defcustom org-collect-code-todos-comment-prefixes
+  '((emacs-lisp-mode . ";;")
+    (python-mode . "#")
+    (c-mode . "//")
+    (c++-mode . "//")
+    (java-mode . "//")
+    (js-mode . "//")
+    (css-mode . "/*")
+    (html-mode . "<!--"))
+  "Alist of major modes and their comment prefixes.
+If a mode is not listed, falls back to `comment-start'."
+  :type '(alist :key-type symbol :value-type string)
+  :group 'org-collect-code-todos)
+
 (defun org-collect-code-todos--get-comment-prefix ()
   "Get the comment prefix for the current buffer's major mode."
   (org-collect-code-todos--debug "Getting comment prefix for mode: %s" major-mode)
-  (let ((prefix (cond
-                 ((derived-mode-p 'emacs-lisp-mode) ";;")
-                 ((derived-mode-p 'python-mode) "#")
-                 ((derived-mode-p 'c-mode 'c++-mode 'java-mode 'js-mode) "//")
-                 ((derived-mode-p 'css-mode) "/*")
-                 ((derived-mode-p 'html-mode) "<!--")
-                 (t comment-start))))
+  (let ((prefix (or (cdr (assq major-mode org-collect-code-todos-comment-prefixes))
+                    comment-start)))
     (org-collect-code-todos--debug "Comment prefix: %s" prefix)
     prefix))
 
