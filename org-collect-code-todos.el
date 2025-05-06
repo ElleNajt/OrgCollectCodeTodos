@@ -15,7 +15,6 @@
 ;;; Code:
 
 (require 'org)
-(require 'org-id)
 
 ;; Debugging function
 (defun org-collect-code-todos--debug (message &rest args)
@@ -46,12 +45,28 @@ Always passes the message to the debug function."
     (when org-collect-code-todos-verbose
       (message "%s" formatted-message))))
 
+
+(defun org-collect-code-todos--base62-encode-random (n)
+  "Generate a random sequence of alphanumerics"
+  (let ((chars "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
+    (mapconcat (lambda (_)
+                 (string (aref chars (random 62))))
+               (make-string n ?x)
+               "")))
+
+
+(defcustom org-collect-code-todos-id-length 10
+  "Length of randomly generated TODO IDs.
+Higher values reduce collision probability but take up more real estate:
+- 8 chars: ~10^-9 collision prob for 1000 TODOs
+- 10 chars: ~10^-12 collision prob (default)
+- 16 chars: ~10^-23 collision prob (paranoid)"
+  :type 'integer
+  :group 'org-collect-code-todos)
+
 (defun org-collect-code-todos--generate-uuid ()
   "Generate a unique ID for a TODO item."
-  (org-collect-code-todos--debug "Generating new UUID")
-  (let ((id (org-id-new)))
-    (org-collect-code-todos--debug "Generated UUID: %s" id)
-    id))
+  (org-collect-code-todos--base62-encode-random org-collect-code-todos-id-length))
 
 (defun org-collect-code-todos--get-comment-prefix ()
   "Get the comment prefix for the current buffer's major mode."

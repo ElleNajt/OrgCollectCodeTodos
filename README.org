@@ -8,6 +8,8 @@ Changes to the TODO in the source code file update in the org mode file. When a 
 
 Large amounts of this were written by Claude 3.7 using aider.
 
+This should work in any prog-mode, but there are various tricky things around indentation. This has been most thoroughly tested with python, elisp and nix.
+
 ** Setup:
 
 Install and enable `org-collect-code-todos-mode`
@@ -78,7 +80,7 @@ The Org file is kept read-only to prevent synchronization conflicts, but specifi
 *** In Source Code
 
 
-You can add text to a TODO, and the text will be refleted in the org mode todo. This is achieved by using the ID.
+You can add text to a TODO, and the text will be refleted in the org mode todo. This is achieved by using the ID, which is the microsecond timestamp in base36.
 
 When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
    
