@@ -71,6 +71,7 @@ Higher values reduce collision probability but take up more real estate:
   '((emacs-lisp-mode . ";;")
     (python-mode . "#")
     (c-mode . "//")
+    (yaml-mode . "#")
     (c++-mode . "//")
     (java-mode . "//")
     (js-mode . "//")
@@ -222,7 +223,8 @@ Returns the TODO line with ID."
 Returns a list of (todo-line following-lines) for each TODO found.
 Only works in programming modes."
   (org-collect-code-todos--debug "Collecting TODOs in buffer: %s" (buffer-name))
-  (if (not (derived-mode-p 'prog-mode))
+  (if (not (or (derived-mode-p 'prog-mode)
+               (assq major-mode org-collect-code-todos-comment-prefixes)))
       (progn
         (org-collect-code-todos--debug "Buffer is not in prog-mode, skipping")
         nil)
@@ -586,7 +588,8 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
 
 (defun org-collect-code-todos--update-todos-on-save ()
   "Update TODOs in the org file when saving a source file."
-  (when (derived-mode-p 'prog-mode)
+  (when (or (derived-mode-p 'prog-mode)
+            (assq major-mode org-collect-code-todos-comment-prefixes))
     (org-collect-code-todos--debug "Updating TODOs on save for: %s" (buffer-file-name))
     (let ((todos (org-collect-code-todos--collect-todos-in-buffer))
           (file-path (buffer-file-name))
