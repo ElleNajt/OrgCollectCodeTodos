@@ -156,11 +156,10 @@ Returns a cons cell with (heading . properties-alist)."
             (id (match-string 2 todo-line))
             (text (match-string 3 todo-line)))
         (setq todo-id id)
-        ;; Create heading with file link that includes search term for the specific TODO
-        (setq heading (format "%s [[file:%s::;; %s\\[%s\\]][%s]]" 
+        ;; Create heading with file link that includes search term for just the TODO ID
+        (setq heading (format "%s [[file:%s::\\[%s\\]][%s]]" 
                               state 
                               file-path 
-                              state
                               id
                               text))
         (org-collect-code-todos--debug "Extracted heading from source: '%s'" heading)
