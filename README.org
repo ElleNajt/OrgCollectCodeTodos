@@ -1,12 +1,17 @@
 * org-collect-code-todos
 
+
+** Problem:
+
+I want TODOs in my code files and I want to use org mode to track those todos. This package solves this problem by collecting TODOs from code files and making them available in a synchronized way to org mode.
+
+** Description
+
 An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
 
 This org mode file is kept read-only, except for toggling TODO/DONE and scheduling, to keep synchronization simple but keep compatibility with standard org-mode functionality, e.g. org agenda.
 
 Changes to the TODO in the source code file update in the org mode file. When a TODO is deleted from the source code file, it is archived from the todo org mode file. TODOs can be scheduled or given deadlines, and this is synchronized.
-
-Large amounts of this were written by Claude 3.7 using aider.
 
 This should work in any prog-mode, but there are various tricky things around indentation. This has been most thoroughly tested with python, elisp and nix.
 
@@ -97,6 +102,14 @@ In the org file you will see, where the header is a link back to the original TO
 
 This will only detect TODOs that appear after some number of comment characters, followed by whitespace.
 
+Scheduling in the org file will be reflected in the source code like this:
+
+#+begin_src python
+# TODO[9Ox0iSnwUn] This needs optimization
+# SCHEDULED: <2025-04-01 Tue> DEADLINE: <2042-12-21 Thu>
+#+end_src
+
+
 ** Working with TODOs
 
 *** In the Org File
@@ -146,7 +159,13 @@ While the actual TODO toggle function calls and scheduling only happen in the or
    - Use `org-collect-code-todos-goto-org-todo`
    - Emacs will open the Org file and jump to the corresponding entry
 
-* Planned work:
+** Planned work:
 - [ ] Add tags based on the git repo and file
 - [ ] Implement a way to repair file paths if they move, e.g. by tracking git renames.
 - [ ] Add support for archiving from the org file (deleting in the source code file)
+- [ ] Support keywords other than TODO/DONE
+
+
+** Other notes:
+
+Large amounts of this were written by Claude 3.7 using aider.
