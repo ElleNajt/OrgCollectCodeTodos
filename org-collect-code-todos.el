@@ -236,7 +236,7 @@ This means it's either in a programming mode or a mode with defined comment pref
 Returns a list of (todo-line following-lines) for each TODO found.
 Only works in programming modes."
   (org-collect-code-todos--debug "Collecting TODOs in buffer: %s" (buffer-name))
-  (if (not (org-collect-code-todos--buffer-supported-p))
+  (if (not org-collect-code-todos-buffer-mode)
       (progn
         (org-collect-code-todos--debug "Buffer is not in a supported mode, skipping")
         nil)
@@ -600,7 +600,7 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
 
 (defun org-collect-code-todos--update-todos-on-save ()
   "Update TODOs in the org file when saving a source file."
-  (when (org-collect-code-todos--buffer-supported-p)
+  (when org-collect-code-todos-buffer-mode
     (org-collect-code-todos--debug "Updating TODOs on save for: %s" (buffer-file-name))
     (let ((todos (org-collect-code-todos--collect-todos-in-buffer))
           (file-path (buffer-file-name))
@@ -838,8 +838,8 @@ It provides keybindings for interacting with TODOs in the current buffer."
   :keymap (let ((map (make-sparse-keymap)))
             map)
   (org-collect-code-todos--debug "Buffer mode %s in %s"
-                                (if org-collect-code-todos-buffer-mode "enabled" "disabled")
-                                (buffer-name)))
+                                 (if org-collect-code-todos-buffer-mode "enabled" "disabled")
+                                 (buffer-name)))
 
 (defun org-collect-code-todos--maybe-enable-buffer-mode ()
   "Enable `org-collect-code-todos-buffer-mode' if the current buffer is supported."
