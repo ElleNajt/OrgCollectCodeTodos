@@ -159,8 +159,13 @@ Returns a cons cell with (heading . properties-alist)."
             (id (match-string 2 todo-line))
             (text (match-string 3 todo-line)))
         (setq todo-id id)
-        ;; Create heading with file link
-        (setq heading (format "%s [[file:%s][%s]]" state file-path text))
+        ;; Create heading with file link that includes search term for the specific TODO
+        (setq heading (format "%s [[file:%s::;; %s\\[%s\\]][%s]]" 
+                              state 
+                              file-path 
+                              state
+                              id
+                              text))
         (org-collect-code-todos--debug "Extracted heading from source: '%s'" heading)
         (org-collect-code-todos--debug "Extracted TODO ID from source: '%s'" todo-id)
         (org-collect-code-todos--message "heading: %s" heading)
@@ -308,7 +313,8 @@ Returns a list of (todo-line following-lines) for each TODO found."
                                      (split-string 
                                       (buffer-substring-no-properties 
                                        (1+ line-start) following-lines-end) 
-                                      "\n"))))
+                                      "\n")
+                                     line-start))) ;; Include the position
                 (push todo-info todos))))))
       
       (setq todos (nreverse todos))
@@ -488,11 +494,12 @@ Functions are called in the context of the source file buffer."
 
 (defun org-collect-code-todos--update-or-create-todo (file file-path todo-info)
   "In FILE, update or create a TODO from TODO-INFO for source at FILE-PATH.
-TODO-INFO is (todo-line following-lines)."
+TODO-INFO is (todo-line following-lines todo-start)."
   (org-collect-code-todos--debug "Updating or creating TODO from: %s" todo-info)
 
   (let* ((todo-line (car todo-info))
          (following-lines (cadr todo-info))
+         (todo-start (caddr todo-info)) ;; Get the position where the TODO starts
          (org-data (org-collect-code-todos--source-to-org todo-line following-lines))
          (heading (car org-data))
          (properties (cdr org-data))
