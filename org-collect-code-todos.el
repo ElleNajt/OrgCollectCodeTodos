@@ -272,7 +272,7 @@ Returns a list of (todo-line following-lines) for each TODO found."
             (let ((todo-info (org-collect-code-todos--extract-todo-info 
                               line-start following-lines-end)))
               (when todo-info
-                (push todo-info todos)))))
+                (push (list (car todo-info) (cadr todo-info) line-start) todos)))))
         
         ;; Then, look for regular TODOs without IDs and assign IDs to them
         (goto-char (point-min))
