@@ -90,10 +90,10 @@ In the source code file you will see:
    #+end_src
 
 
-In the org file you will see, where the header is a link back to the original TODO. The links are absolute.
+In the org file you will see, where the header is a link back to the original TODO, along with tags for the repo and the directory and the file. The tags can be customized, see below. Be mindful that the links are absolute.
 
 #+begin_src org
-** TODO [[file:/path/to/file.py][This needs optimization]]
+** TODO [[file:/path/to/file.py][This needs optimization]] :dir_OrgCollectCodeTodos:name_test:ext_py:repo_OrgCollectCodeTodos:
    :PROPERTIES:
    :TODO_ID: 9Ox0iSnwUn
    :FILE_PATH: /path/to/file.py
@@ -160,12 +160,52 @@ While the actual TODO toggle function calls and scheduling only happen in the or
    - Use `org-collect-code-todos-goto-org-todo`
    - Emacs will open the Org file and jump to the corresponding entry
 
+** Tagging:
+
+TODOs are automatically tagged based on their location and context. By default, the following tags are added:
+
+- Repository tag (`:repo_projectname:`): Based on the git repository name
+- Directory tag (`:dir_dirname:`): Based on the immediate parent directory
+- File extension tag (`:file_ext:`): Based on the file extension (e.g., `:file_py:` for Python files)
+- File name tag (`:name_filename:`): Based on the file name without extension
+
+All tags are automatically sanitized (converted to lowercase, special characters replaced with underscores) to ensure they're valid org-mode tags.
+
+*** Customizing Tags
+
+You can customize tag behavior through these variables:
+
+#+begin_src emacs-lisp
+;; Enable/disable specific tag types
+(setq org-collect-code-todos-tag-git-repo t)    ; git repository tags
+(setq org-collect-code-todos-tag-directory t)    ; directory tags
+(setq org-collect-code-todos-tag-file-ext t)     ; file extension tags
+(setq org-collect-code-todos-tag-file-name t)    ; file name tags
+
+;; Customize tag prefixes
+(setq org-collect-code-todos-tag-prefixes
+      '((git-repo . "repo_")
+        (file-ext . "file_")
+        (directory . "dir_")
+        (file-name . "name_")))
+
+;; Add custom tag functions
+(setq org-collect-code-todos-additional-tag-functions
+      (list
+       ;; Example: Add "test" tag for test files
+       (lambda ()
+         (when (string-match "test" (buffer-file-name))
+           '("test")))))
+#+end_src
+
+For example, a TODO in `/projects/myapp/src/config.py` might get these tags:
+`:repo_myapp:dir_src:file_py:name_config:`
+
 ** Planned work:
-- [ ] Add tags based on the git repo and file
 - [ ] Implement a way to repair file paths if they move, e.g. by tracking git renames.
 - [ ] Make archiving synchronize back to the code file.
 - [ ] Support keywords other than TODO/DONE
-
+- [ ] Potentially make the tags update if the file changes, etc.
 
 ** Other notes:
 

@@ -311,6 +311,7 @@ Returns a list of (todo-line following-lines) for each TODO found."
       (org-collect-code-todos--debug "Found %d TODOs in buffer" (length todos))
       todos)))
 
+
 (defcustom org-collect-code-todos-file nil
   "File for storing code TODOs.
 If nil, defaults to code-todos.org in the project root or current directory."
@@ -385,6 +386,101 @@ Returns the point at the beginning of the heading, or nil if not found."
             (when (string= (cdr (assoc "TODO_ID" properties)) todo-id)
               (setq found (match-beginning 0)))))
         found))))
+;;;; File Tags
+
+(defun org-collect-code-todos--get-git-repo-name ()
+  "Get the git repository name for the current buffer's file.
+Returns nil if not in a git repository."
+  (when-let* ((file-path (buffer-file-name))
+              (git-root (vc-git-root file-path)))
+    (file-name-nondirectory (directory-file-name git-root))))
+
+(defgroup org-collect-code-todos nil
+  "Customization group for org-collect-code-todos."
+  :group 'org)
+
+(defcustom org-collect-code-todos-tag-git-repo t
+  "Whether to add git repository name as a tag."
+  :type 'boolean
+  :group 'org-collect-code-todos)
+
+(defcustom org-collect-code-todos-tag-file-ext t
+  "Whether to add file extension as a tag."
+  :type 'boolean
+  :group 'org-collect-code-todos)
+
+(defcustom org-collect-code-todos-tag-directory t
+  "Whether to add directory name as a tag."
+  :type 'boolean
+  :group 'org-collect-code-todos)
+
+(defcustom org-collect-code-todos-tag-file-name t
+  "Whether to add file name (without extension) as a tag."
+  :type 'boolean
+  :group 'org-collect-code-todos)
+
+(defcustom org-collect-code-todos-tag-prefixes
+  '((git-repo . "repo_")
+    (file-ext . "ext_")
+    (file-name . "name_")
+    (directory . "dir_"))
+  "Prefixes to use for different types of tags.
+Customize these to avoid tag naming conflicts with your org setup."
+  :type '(alist :key-type symbol :value-type string)
+  :group 'org-collect-code-todos)
+
+(defcustom org-collect-code-todos-additional-tag-functions nil
+  "List of functions to generate additional tags.
+Each function should take no arguments and return a list of strings,
+which will be added as tags to the TODO.
+Functions are called in the context of the source file buffer."
+  :type '(repeat function)
+  :group 'org-collect-code-todos)
+
+(defun org-collect-code-todos--sanitize-tag (tag)
+  "Sanitize TAG to be a valid org-mode tag."
+  (replace-regexp-in-string "[^a-zA-Z0-9_@]" "_" tag))
+
+
+(defun org-collect-code-todos--get-file-tags ()
+  "Generate tags. Returns a list of tags."
+  (let ((tags nil)
+        (file-path (buffer-file-name)))
+    ;; Git repo tag
+    (when-let* ((repo-name (and org-collect-code-todos-tag-git-repo
+                                (org-collect-code-todos--get-git-repo-name)))
+                (prefix (cdr (assq 'git-repo org-collect-code-todos-tag-prefixes))))
+      (push (org-collect-code-todos--sanitize-tag (concat prefix repo-name)) tags))
+
+    ;; File extension tag
+    (when-let* ((ext (and org-collect-code-todos-tag-file-ext
+                          file-path
+                          (file-name-extension file-path)))
+                (prefix (cdr (assq 'file-ext org-collect-code-todos-tag-prefixes))))
+      (push (org-collect-code-todos--sanitize-tag (concat prefix ext)) tags))
+
+    ;; File name tag
+    (when-let* ((name (and org-collect-code-todos-tag-file-name
+                           file-path
+                           (file-name-base file-path)))
+                (prefix (cdr (assq 'file-name org-collect-code-todos-tag-prefixes))))
+      (push (org-collect-code-todos--sanitize-tag (concat prefix name)) tags))
+
+    ;; Directory tag
+    (when-let* ((dir (and org-collect-code-todos-tag-directory
+                          file-path
+                          (file-name-nondirectory
+                           (directory-file-name (file-name-directory file-path)))))
+                (prefix (cdr (assq 'directory org-collect-code-todos-tag-prefixes))))
+      (push (org-collect-code-todos--sanitize-tag (concat prefix dir)) tags))
+
+    ;; Additional tag functions
+    (dolist (func org-collect-code-todos-additional-tag-functions)
+      (when-let ((additional-tags (funcall func)))
+        (setq tags (append (mapcar #'org-collect-code-todos--sanitize-tag additional-tags)
+                           tags))))
+    tags))
+;;;; Update or create todo
 
 (defun org-collect-code-todos--update-or-create-todo (file file-path todo-info)
   "In FILE, update or create a TODO from TODO-INFO for source at FILE-PATH.
@@ -399,13 +495,15 @@ TODO-INFO is (todo-line following-lines)."
          (todo-id (cdr (assoc "TODO_ID" properties)))
          (scheduled (cdr (assoc "SCHEDULED" properties)))
          (deadline (cdr (assoc "DEADLINE" properties)))
-         (todo-point (org-collect-code-todos--find-todo-by-id file todo-id)))
-    
-    (org-collect-code-todos--debug "Source to org conversion: heading='%s', todo-id='%s'" 
+         (todo-point (org-collect-code-todos--find-todo-by-id file todo-id))
+         (file-tags (org-collect-code-todos--get-file-tags)))
+
+
+    (org-collect-code-todos--debug "Source to org conversion: heading='%s', todo-id='%s'"
                                    heading todo-id)
-    
+
     (with-current-buffer (find-file-noselect file)
-      (org-collect-code-todos--with-writable-buffer 
+      (org-collect-code-todos--with-writable-buffer
        (current-buffer)
        (lambda ()
          ;; Temporarily remove hooks and advice to prevent recursive updates
@@ -413,7 +511,7 @@ TODO-INFO is (todo-line following-lines)."
          (remove-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
          (advice-remove 'org-schedule #'org-collect-code-todos--sync-todo-to-source-advice)
          (advice-remove 'org-deadline #'org-collect-code-todos--sync-todo-to-source-advice)
-         
+
          (unwind-protect
              (progn
                (if todo-point
@@ -425,8 +523,8 @@ TODO-INFO is (todo-line following-lines)."
                      (if (string-match "^\\(TODO\\|DONE\\) \\(.*\\)" heading)
                          (let ((todo-state (match-string 1 heading))
                                (todo-text (match-string 2 heading)))
-                           (org-collect-code-todos--debug 
-                            "Updating org entry: state='%s', text='%s'" 
+                           (org-collect-code-todos--debug
+                            "Updating org entry: state='%s', text='%s'"
                             todo-state todo-text)
                            ;; Update the headline first, because updating schedule and todo will trigger an update back
                            (org-edit-headline todo-text)
@@ -434,13 +532,14 @@ TODO-INFO is (todo-line following-lines)."
                            (org-todo todo-state))
                        ;; If no TODO state in heading, just update the headline
                        (progn
-                         (org-collect-code-todos--debug 
+                         (org-collect-code-todos--debug
                           "Updating org entry with just heading: '%s'" heading)
                          (org-edit-headline heading)))
                      (when scheduled
                        (org-schedule nil scheduled))
                      (when deadline
-                       (org-deadline nil deadline)))
+                       (org-deadline nil deadline))
+                     (org-set-tags file-tags))
                  ;; Create new TODO
                  (progn
                    (org-collect-code-todos--debug "Creating new TODO: %s" heading)
@@ -453,8 +552,9 @@ TODO-INFO is (todo-line following-lines)."
                    (when scheduled
                      (org-schedule nil scheduled))
                    (when deadline
-                     (org-deadline nil deadline)))))
-           
+                     (org-deadline nil deadline))
+                   (org-set-tags file-tags))))
+
            ;; Restore hooks and advice
            (org-collect-code-todos--debug "Restoring org hooks and advice")
            (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
@@ -604,10 +704,10 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
     (let ((todos (org-collect-code-todos--collect-todos-in-buffer))
           (file-path (buffer-file-name))
           (org-file (org-collect-code-todos--ensure-org-file-exists)))
-      
+
       ;; First, delete orphaned TODOs
       (org-collect-code-todos--delete-orphaned-todos org-file file-path todos)
-      
+
       ;; Then update or create TODOs
       (when todos
         (org-collect-code-todos--debug "Found %d TODOs to update" (length todos))
@@ -619,7 +719,7 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
   (org-collect-code-todos--debug "Syncing TODO to source")
   (let* ((todo-id (org-entry-get (point) "TODO_ID"))
          (file-path (org-entry-get (point) "FILE_PATH")))
-    
+
     (when (and todo-id file-path)
       (org-collect-code-todos--debug "Syncing TODO %s to file %s" todo-id file-path)
       (org-collect-code-todos--update-todo-in-source-file file-path todo-id))))
@@ -632,8 +732,8 @@ Ignores any arguments passed to it."
 (defun org-collect-code-todos--make-org-file-read-only ()
   "Make the org TODOs file read-only."
   (let ((file-path (org-collect-code-todos--get-org-file-path)))
-    (when (and (buffer-file-name) 
-               (string= (expand-file-name (buffer-file-name)) 
+    (when (and (buffer-file-name)
+               (string= (expand-file-name (buffer-file-name))
                         (expand-file-name file-path)))
       (setq buffer-read-only t)
       (org-collect-code-todos--debug "Made org file read-only: %s" file-path))))
@@ -658,7 +758,7 @@ Restores the read-only state after execution."
   (add-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
   (advice-add 'org-schedule :after #'org-collect-code-todos--sync-todo-to-source-advice)
   (advice-add 'org-deadline :after #'org-collect-code-todos--sync-todo-to-source-advice)
-  
+
   ;; Add advice to temporarily make the org file writable for these operations
   (advice-add 'org-todo :around #'org-collect-code-todos--make-writable-advice)
   (advice-add 'org-collect-code-todos--todo-done-swap :around #'org-collect-code-todos--make-writable-advice)
@@ -667,7 +767,7 @@ Restores the read-only state after execution."
 
   (advice-add 'org-archive-subtree :around #'org-collect-code-todos--make-writable-advice)
   (advice-add 'org-archive-to-archive-sibling :around #'org-collect-code-todos--make-writable-advice)
-  
+
   (add-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 (defun org-collect-code-todos--remove-org-hooks ()
@@ -676,7 +776,7 @@ Restores the read-only state after execution."
   (remove-hook 'org-after-todo-state-change-hook #'org-collect-code-todos--sync-todo-to-source)
   (advice-remove 'org-schedule #'org-collect-code-todos--sync-todo-to-source-advice)
   (advice-remove 'org-deadline #'org-collect-code-todos--sync-todo-to-source-advice)
-  
+
   ;; Remove the writable advice
   (advice-remove 'org-todo #'org-collect-code-todos--make-writable-advice)
   (advice-remove 'org-collect-code-todos--todo-done-swap #'org-collect-code-todos--make-writable-advice)
@@ -685,7 +785,7 @@ Restores the read-only state after execution."
 
   (advice-remove 'org-archive-subtree #'org-collect-code-todos--make-writable-advice)
   (advice-remove 'org-archive-to-archive-sibling #'org-collect-code-todos--make-writable-advice)
-  
+
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
 (defun org-collect-code-todos--get-todo-id-at-point ()
@@ -711,7 +811,7 @@ Returns the buffer and position if found, nil otherwise."
       (with-current-buffer buffer
         (widen)
         (goto-char (point-min))
-        
+
         ;; Search for the TODO
         (while (and (not found)
                     (re-search-forward org-heading-regexp nil t))
@@ -720,7 +820,7 @@ Returns the buffer and position if found, nil otherwise."
               (setq found (match-beginning 0))
               (goto-char found)
               (org-collect-code-todos--debug "Successfully found org TODO"))))
-        
+
         (if found
             (cons buffer (point))
           (org-collect-code-todos--debug "Could not find corresponding TODO in org file")
