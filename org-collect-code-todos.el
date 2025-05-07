@@ -830,6 +830,24 @@ This should be called when point is on a TODO line in a source file."
        'done))))
 
 ;;;###autoload
+(define-minor-mode org-collect-code-todos-buffer-mode
+  "Minor mode for interacting with code TODOs in supported buffers.
+This mode is automatically enabled in programming modes and other supported modes.
+It provides keybindings for interacting with TODOs in the current buffer."
+  :lighter " OrgTODO"
+  :keymap (let ((map (make-sparse-keymap)))
+            map)
+  (org-collect-code-todos--debug "Buffer mode %s in %s"
+                                (if org-collect-code-todos-buffer-mode "enabled" "disabled")
+                                (buffer-name)))
+
+(defun org-collect-code-todos--maybe-enable-buffer-mode ()
+  "Enable `org-collect-code-todos-buffer-mode' if the current buffer is supported."
+  (when (and org-collect-code-todos-mode
+             (org-collect-code-todos--buffer-supported-p))
+    (org-collect-code-todos-buffer-mode 1)))
+
+;;;###autoload
 (define-minor-mode org-collect-code-todos-mode
   "Minor mode for collecting code TODOs into an org file."
   :lighter " OrgTODO"
@@ -838,9 +856,23 @@ This should be called when point is on a TODO line in a source file."
       (progn
         (add-hook 'after-save-hook #'org-collect-code-todos--update-todos-on-save)
         (org-collect-code-todos--setup-org-hooks)
+        ;; Enable buffer mode in all supported buffers
+        (add-hook 'find-file-hook #'org-collect-code-todos--maybe-enable-buffer-mode)
+        (add-hook 'prog-mode-hook #'org-collect-code-todos--maybe-enable-buffer-mode)
+        ;; Enable in all currently open supported buffers
+        (dolist (buffer (buffer-list))
+          (with-current-buffer buffer
+            (org-collect-code-todos--maybe-enable-buffer-mode)))
         (org-collect-code-todos--debug "Enabled org-collect-code-todos-mode"))
     (remove-hook 'after-save-hook #'org-collect-code-todos--update-todos-on-save)
     (org-collect-code-todos--remove-org-hooks)
+    (remove-hook 'find-file-hook #'org-collect-code-todos--maybe-enable-buffer-mode)
+    (remove-hook 'prog-mode-hook #'org-collect-code-todos--maybe-enable-buffer-mode)
+    ;; Disable in all buffers
+    (dolist (buffer (buffer-list))
+      (with-current-buffer buffer
+        (when org-collect-code-todos-buffer-mode
+          (org-collect-code-todos-buffer-mode -1))))
     (org-collect-code-todos--debug "Disabled org-collect-code-todos-mode")))
 
 (provide 'org-collect-code-todos)
