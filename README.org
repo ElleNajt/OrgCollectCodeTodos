@@ -3,13 +3,15 @@
 
 ** Problem:
 
-I want TODOs in my code files and I want to use org mode to track those todos. This package solves this problem by collecting TODOs from code files and making them available in a synchronized way to org mode.
+I want TODOs directly in my code files and I want to use org mode to track those todos.
+
+This package solves this problem by collecting TODOs from code files and making them available in a synchronized way to org mode.
 
 ** Description
 
 An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
 
-This org mode file is kept read-only, except for toggling TODO/DONE and scheduling, to keep synchronization simple but keep compatibility with standard org-mode functionality, e.g. org agenda.
+This org mode file is read-only, except for toggling TODO/DONE and scheduling, to keep synchronization simple but keep compatibility with standard org-mode functionality, e.g. org agenda.
 
 Changes to the TODO in the source code file update in the org mode file. When a TODO is deleted from the source code file, it is archived from the todo org mode file. TODOs can be scheduled or given deadlines, and this is synchronized.
 
@@ -35,7 +37,7 @@ For instance,
 #+begin_src emacs-lisp :tangle yes
 
 ;; Set the defualt location for the code todos org file.
-;; By default this is put in the projetile project root for the project of a given source file.
+;; By default this is put in the projectile project root for the project of a given source file.
 (setq org-collect-code-todos-file "~/org/code-todos.org")
 
 
@@ -81,7 +83,7 @@ Once org-collect-code-todos-mode is activated, the minor mode org-collect-code-t
    # TODO This needs optimization
    #+end_src
 
-2. Save the file, and the TODO will be given an ID and collected into your org-collect-code-todos file.
+2. Save the file, and the TODO will be given an ID and collected into your org-collect-code-todos file. TODOs must be preceded by a comment character and a space to be detected.
 
 In the source code file you will see:
 
@@ -90,7 +92,7 @@ In the source code file you will see:
    #+end_src
 
 
-In the org file you will see, where the header is a link back to the original TODO, along with tags for the repo and the directory and the file. The tags can be customized, see below. Be mindful that the links are absolute.
+In the org file you will see:
 
 #+begin_src org
 ** TODO [[file:/path/to/file.py][This needs optimization]] :dir_OrgCollectCodeTodos:name_test:ext_py:repo_OrgCollectCodeTodos:
@@ -100,7 +102,10 @@ In the org file you will see, where the header is a link back to the original TO
    :END:
 #+end_src
 
-This will only detect TODOs that appear after some number of comment characters, followed by whitespace.
+In detail:
+- The header is an absolute link back to the original TODO.
+- Tags are added for the repo and the directory and the file and extension. The tags can be customized, see below.
+- The property drawer contains the file location and the ID.
 
 Scheduling in the org file will be reflected in the source code like this:
 
@@ -123,7 +128,7 @@ The Org file is otherwise kept read-only to prevent synchronization conflicts.
 
 *** In Source Code
 
-You can update text in a TODO and the text will be reflected in the org mode todo. This is made possible by diambiguating TODOs from eachother via an assigned ID.
+You can update text in a TODO and the text will be reflected in the org mode todo. This is made possible by distinguishing TODOs from eachother via an assigned ID.
 
 Each TODO is given a unique ID generated as a random base62 string (using digits 0-9,
 letters A-Z and a-z). The default length is 10 characters, which provides a very low
