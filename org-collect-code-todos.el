@@ -233,8 +233,7 @@ This means it's either in a programming mode or a mode with defined comment pref
 
 (defun org-collect-code-todos--collect-todos-in-buffer ()
   "Collect all TODOs in the current buffer.
-Returns a list of (todo-line following-lines) for each TODO found.
-Only works in programming modes."
+Returns a list of (todo-line following-lines) for each TODO found."
   (org-collect-code-todos--debug "Collecting TODOs in buffer: %s" (buffer-name))
   (if (not org-collect-code-todos-buffer-mode)
       (progn

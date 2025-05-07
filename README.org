@@ -33,14 +33,20 @@ For instance,
 
 
 ;; Set the key for toggling TODO state in source code and jumping to the org entry
-(map! :map prog-mode-map
+(map! :map org-collect-code-todos-buffer-mode-map
       :n "C-c C-t" #'org-collect-code-todos-toggle-todo-state
       :n "C-c C-s" #'org-collect-code-todos-schedule
       :n "C-c C-d" #'org-collect-code-todos-deadline
       :n "C-c C-j" #'org-collect-code-todos-goto-org-todo)
+
+;; Optionally, configure the comment prefixes, for instance to collect TODOs from markdown headers instead of comments
+(setq org-collect-code-todos-comment-prefixes
+      (append (assq-delete-all 'markdown-mode org-collect-code-todos-comment-prefixes)
+             '((markdown-mode . "#"))))
 #+end_src
 
 #+RESULTS:
+: ((emacs-lisp-mode . ;;) (python-mode . #) (c-mode . //) (c++-mode . //) (java-mode . //) (js-mode . //) (css-mode . /*) (html-mode . <!--) (markdown-mode . #))
 
 *** Note:
 Make sure to put the code-todos.org file somewhere where your org agenda will scan for it!
