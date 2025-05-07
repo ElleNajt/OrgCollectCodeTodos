@@ -7,6 +7,9 @@ I want TODOs directly in my code files and I want to use org mode to track those
 
 This package solves this problem by collecting TODOs from code files and making them available in a synchronized way to org mode.
 
+Here is a demonstration:
+
+[[file:output.gif]]
 ** Description
 
 An Emacs package that automatically collects TODO comments from your code files into a centralized Org mode file.
