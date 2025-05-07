@@ -19,7 +19,9 @@ For instance,
 #+begin_src emacs-lisp :tangle yes
 (require
  'org-collect-code-todos)
+(org-collect-code-todos-mode 1)
 
+;; For Doom Emacs users
 (add-hook! 'doom-init-ui-hook #'org-collect-code-todos-mode)
 #+end_src
 
@@ -39,10 +41,20 @@ For instance,
       :n "C-c C-d" #'org-collect-code-todos-deadline
       :n "C-c C-j" #'org-collect-code-todos-goto-org-todo)
 
-;; Optionally, configure the comment prefixes, for instance to collect TODOs from markdown headers instead of comments
+;; Optionally, configure the comment prefixes.
+;; Example of changing markdown-mode to use # instead of <!--:
 (setq org-collect-code-todos-comment-prefixes
       (append (assq-delete-all 'markdown-mode org-collect-code-todos-comment-prefixes)
              '((markdown-mode . "#"))))
+
+;; Enable debug logging if needed
+(setq org-collect-code-todos-debug t)
+
+;; Show informational messages during operations
+(setq org-collect-code-todos-verbose t)
+
+;; Customize the length of TODO IDs (default is 10)
+(setq org-collect-code-todos-id-length 8)  ; shorter IDs
 #+end_src
 
 #+RESULTS:
@@ -51,6 +63,10 @@ For instance,
 *** Note:
 Make sure to put the code-todos.org file somewhere where your org agenda will scan for it!
 
+*** On the minor mode:
+Once org-collect-code-todos-mode is activated, the minor mode org-collect-code-todos-buffer-mode is automatically enabled in:
+- Any buffer derived from prog-mode
+- Any buffer whose major-mode is listed in org-collect-code-todos-comment-prefixes
 
 ** Usage
 
@@ -65,18 +81,18 @@ Make sure to put the code-todos.org file somewhere where your org agenda will sc
 In the source code file you will see:
 
    #+begin_src python
-# TODO[1cbe31f98195af20] This needs optimization
+# TODO[9Ox0iSnwUn] This needs optimization
    #+end_src
 
 
-In the org file you will see:
+In the org file you will see, where the header is a link back to the original TODO. The links are absolute.
 
 #+begin_src org
-* TODO This needs optimization :test_py:
-:PROPERTIES:
-:TODO_ID: 1cbe31f98195af20
-:FILE_PATH: /home/elle/code/OrgCollectCodeTodos/test.py
-:END:
+** TODO [[file:/path/to/file.py][This needs optimization]]
+   :PROPERTIES:
+   :TODO_ID: 9Ox0iSnwUn
+   :FILE_PATH: /path/to/file.py
+   :END:
 #+end_src
 
 This will only detect TODOs that appear after some number of comment characters, followed by whitespace.
@@ -86,24 +102,26 @@ This will only detect TODOs that appear after some number of comment characters,
 *** In the Org File
 
 In the Org file, you can:
-   - Mark TODOs as DONE (which updates the source code)
-   - Schedule TODOs or set deadlines
-   - Archive completed TODOs
+   - Mark TODOs as DONE (which updates the source code TODO to DONE)
+   - Schedule TODOs or set deadlines (reflected in the source code)
 
-The Org file is kept read-only to prevent synchronization conflicts, but specific operations like changing TODO states, scheduling, and deadlines are allowed through special handling.
+The Org file is otherwise kept read-only to prevent synchronization conflicts.
 
 *** In Source Code
 
+You can update text in a TODO and the text will be reflected in the org mode todo. This is made possible by diambiguating TODOs from eachother via an assigned ID.
 
-You can add text to a TODO, and the text will be refleted in the org mode todo. This is achieved by using the ID, which is the microsecond timestamp in base36.
+Each TODO is given a unique ID generated as a random base62 string (using digits 0-9,
+letters A-Z and a-z). The default length is 10 characters, which provides a very low
+probability of collisions even with thousands of TODOs, without occupying too much real estate.
 
 When you mark a TODO as DONE in the Org file, the corresponding comment in your code will be updated:
    
 #+begin_src python
-# DONE[d7dab7fc6b277026] This needs optimization
+# DONE[9Ox0iSnwUn] This needs optimization
 #+end_src
 
-While the actual TODO toggle function calls and scheduling only happen in the org mode file, we provide convenience functions to work with TODOs directly from your source code:
+While the actual TODO toggle function calls and scheduling only happen in the org mode file, we provide convenience functions to work with TODOs directly from your source code. Effectively, these invisibly move to the org file and call the corresponding org mode function.
 
 1. *Toggle TODO/DONE state*:
    - Place your cursor on a TODO line
@@ -129,4 +147,6 @@ While the actual TODO toggle function calls and scheduling only happen in the or
    - Emacs will open the Org file and jump to the corresponding entry
 
 * Planned work:
+- [ ] Add tags based on the git repo and file
 - [ ] Implement a way to repair file paths if they move, e.g. by tracking git renames.
+- [ ] Add support for archiving from the org file (deleting in the source code file)
