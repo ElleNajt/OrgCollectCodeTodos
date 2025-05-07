@@ -664,6 +664,9 @@ Restores the read-only state after execution."
   (advice-add 'org-collect-code-todos--todo-done-swap :around #'org-collect-code-todos--make-writable-advice)
   (advice-add 'org-schedule :around #'org-collect-code-todos--make-writable-advice)
   (advice-add 'org-deadline :around #'org-collect-code-todos--make-writable-advice)
+
+  (advice-add 'org-archive-subtree :around #'org-collect-code-todos--make-writable-advice)
+  (advice-add 'org-archive-to-archive-sibling :around #'org-collect-code-todos--make-writable-advice)
   
   (add-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
@@ -679,6 +682,9 @@ Restores the read-only state after execution."
   (advice-remove 'org-collect-code-todos--todo-done-swap #'org-collect-code-todos--make-writable-advice)
   (advice-remove 'org-schedule #'org-collect-code-todos--make-writable-advice)
   (advice-remove 'org-deadline #'org-collect-code-todos--make-writable-advice)
+
+  (advice-remove 'org-archive-subtree #'org-collect-code-todos--make-writable-advice)
+  (advice-remove 'org-archive-to-archive-sibling #'org-collect-code-todos--make-writable-advice)
   
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 

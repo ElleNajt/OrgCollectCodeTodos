@@ -117,6 +117,7 @@ Scheduling in the org file will be reflected in the source code like this:
 In the Org file, you can:
    - Mark TODOs as DONE (which updates the source code TODO to DONE)
    - Schedule TODOs or set deadlines (reflected in the source code)
+   - Archive TODOs (does not impact the source code)
 
 The Org file is otherwise kept read-only to prevent synchronization conflicts.
 
@@ -162,7 +163,7 @@ While the actual TODO toggle function calls and scheduling only happen in the or
 ** Planned work:
 - [ ] Add tags based on the git repo and file
 - [ ] Implement a way to repair file paths if they move, e.g. by tracking git renames.
-- [ ] Add support for archiving from the org file (deleting in the source code file)
+- [ ] Make archiving synchronize back to the code file.
 - [ ] Support keywords other than TODO/DONE
 
 
