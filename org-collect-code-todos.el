@@ -14,8 +14,12 @@
 
 ;;; Code:
 
+;;;; Dependencies
 
 (require 'org)
+
+;;;; Debugging and Logging
+;;;;; Debug Output Functions
 
 ;; Debugging function
 (defun org-collect-code-todos--debug (message &rest args)
@@ -29,6 +33,8 @@
         (insert (format "%s: %s\n" 
                         (format-time-string "%Y-%m-%d %H:%M:%S")
                         formatted-message))))))
+
+;;;;; User-facing Message Control
 
 (defcustom org-collect-code-todos-verbose nil
   "Whether to show informational messages during operations.
@@ -46,9 +52,11 @@ Always passes the message to the debug function."
     (when org-collect-code-todos-verbose
       (message "%s" formatted-message))))
 
+;;;; ID Generation
+;;;;; Random ID Functions
 
 (defun org-collect-code-todos--base62-encode-random (n)
-  "Generate a random sequence of alphanumerics"
+  "Generate a random sequence of alphanumerics of length N."
   (let ((chars "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
     (mapconcat (lambda (_)
                  (string (aref chars (random 62))))
@@ -67,6 +75,9 @@ Higher values reduce collision probability but take up more real estate:
 (defun org-collect-code-todos--generate-uuid ()
   "Generate a unique ID for a TODO item."
   (org-collect-code-todos--base62-encode-random org-collect-code-todos-id-length))
+
+;;;; Comment Handling
+;;;;; Comment Prefix Configuration
 
 (defcustom org-collect-code-todos-comment-prefixes
   '((emacs-lisp-mode . ";;")
@@ -97,6 +108,9 @@ If a mode is not listed, falls back to `comment-start'."
                     comment-start)))
     (org-collect-code-todos--debug "Comment prefix: %s" prefix)
     prefix))
+
+;;;; Format Conversion
+;;;;; Org to Source Conversion
 
 (defun org-collect-code-todos--org-to-source (org-heading org-properties)
   "Convert ORG-HEADING and ORG-PROPERTIES to source code TODO format.
@@ -138,6 +152,8 @@ Returns a list of strings, one for each line of the TODO comment."
     
     (org-collect-code-todos--debug "Converted to source format: %s" result)
     result))
+
+;;;;; Source to Org Conversion
 
 (defun org-collect-code-todos--source-to-org (todo-line &optional following-lines)
   "Convert source code TODO-LINE and optional FOLLOWING-LINES to org format.
@@ -181,12 +197,17 @@ Returns a cons cell with (heading . properties-alist)."
     (org-collect-code-todos--debug "Converted to org format: %s, %s" heading properties)
     (cons heading properties)))
 
+;;;; Buffer Manipulation
+;;;;; Buffer Write Protection
+
 (defun org-collect-code-todos--with-writable-buffer (buffer-or-name fn)
   "Execute FN with BUFFER-OR-NAME temporarily writable."
   (org-collect-code-todos--debug "Making buffer writable: %s" buffer-or-name)
   (with-current-buffer buffer-or-name
     (let ((inhibit-read-only t))
       (funcall fn))))
+
+;;;;; TODO-Extraction
 
 (defun org-collect-code-todos--extract-todo-info (line-start line-end)
   "Extract TODO information from region between LINE-START and LINE-END.
@@ -220,6 +241,8 @@ where todo-start is the position where the TODO comment starts."
           (org-collect-code-todos--debug "TODO starts at position: %d" todo-start)
           (list todo-line following-lines todo-start))))))
 
+;;;;; TODO Creation
+
 (defun org-collect-code-todos--create-todo-with-id (todo-text)
   "Create a new TODO with TODO-TEXT and a generated ID.
 Returns the TODO line with ID."
@@ -230,11 +253,15 @@ Returns the TODO line with ID."
     (org-collect-code-todos--debug "Created TODO line: %s" todo-line)
     todo-line))
 
+;;;;; Buffer Support Detection
+
 (defun org-collect-code-todos--buffer-supported-p ()
   "Return non-nil if the current buffer is supported for TODO collection.
 This means it's either in a programming mode or a mode with defined comment prefixes."
   (or (derived-mode-p 'prog-mode)
       (assq major-mode org-collect-code-todos-comment-prefixes)))
+
+;;;;; TODO-Collection
 
 (defun org-collect-code-todos--collect-todos-in-buffer ()
   "Collect all TODOs in the current buffer.
@@ -317,6 +344,10 @@ Returns a list of (todo-line following-lines) for each TODO found."
       (org-collect-code-todos--debug "Found %d TODOs in buffer" (length todos))
       todos)))
 
+;;;; Org File Management
+
+
+;;;;; Org File Configuration
 
 (defcustom org-collect-code-todos-file nil
   "File for storing code TODOs.
@@ -348,6 +379,8 @@ When non-nil, debug messages will be logged to the debug buffer."
         (insert "#+TODO: TODO DONE\n\n")
         (insert "* Code TODOs\n")))
     file-path))
+
+;;;;; Org Heading Management
 
 (defun org-collect-code-todos--find-or-create-heading (file heading-path)
   "In FILE, find or create heading at HEADING-PATH.
@@ -393,6 +426,7 @@ Returns the point at the beginning of the heading, or nil if not found."
               (setq found (match-beginning 0)))))
         found))))
 ;;;; File Tags
+;;;;; Tag Generation
 
 (defun org-collect-code-todos--get-git-repo-name ()
   "Get the git repository name for the current buffer's file.
@@ -404,6 +438,8 @@ Returns nil if not in a git repository."
 (defgroup org-collect-code-todos nil
   "Customization group for org-collect-code-todos."
   :group 'org)
+
+;;;;; Tag Configuration
 
 (defcustom org-collect-code-todos-tag-git-repo t
   "Whether to add git repository name as a tag."
@@ -443,10 +479,11 @@ Functions are called in the context of the source file buffer."
   :type '(repeat function)
   :group 'org-collect-code-todos)
 
+;;;;; Tag Utilities
+
 (defun org-collect-code-todos--sanitize-tag (tag)
   "Sanitize TAG to be a valid org-mode tag."
   (replace-regexp-in-string "[^a-zA-Z0-9_@]" "_" tag))
-
 
 (defun org-collect-code-todos--get-file-tags ()
   "Generate tags. Returns a list of tags."
@@ -486,7 +523,8 @@ Functions are called in the context of the source file buffer."
         (setq tags (append (mapcar #'org-collect-code-todos--sanitize-tag additional-tags)
                            tags))))
     tags))
-;;;; Update or create todo
+;;;; TODO-Synchronization
+;;;;; Update or Create TODOs
 
 (defun org-collect-code-todos--update-or-create-todo (file file-path todo-info)
   "In FILE, update or create a TODO from TODO-INFO for source at FILE-PATH.
@@ -568,6 +606,8 @@ TODO-INFO is (todo-line following-lines todo-start)."
            (advice-add 'org-schedule :after #'org-collect-code-todos--sync-todo-to-source-advice)
            (advice-add 'org-deadline :after #'org-collect-code-todos--sync-todo-to-source-advice)))))))
 
+;;;;; Source File TODO Operations
+
 (defun org-collect-code-todos--find-todo-in-source-file (file-path todo-id)
   "Find a TODO with TODO-ID in FILE-PATH.
 Returns (point . end-point) and prefix text, or nil if not found."
@@ -601,7 +641,6 @@ Returns (point . end-point) and prefix text, or nil if not found."
                 (forward-line 1)))
 
             (list start (1+ end) prefix-text)))))))
-
 
 (defun org-collect-code-todos--update-todo-in-source-file (file-path todo-id)
   "Update TODO with TODO-ID in FILE-PATH from current org entry."
@@ -663,6 +702,8 @@ Returns (point . end-point) and prefix text, or nil if not found."
               (save-buffer))))))))
 
 
+;;;;; Orphaned TODO Management
+
 (defun org-collect-code-todos--delete-orphaned-todos (file file-path todos)
   "Delete TODOs in FILE for FILE-PATH that are not in TODOS list.
 TODOS is a list of (todo-line following-lines) for each TODO found in the source file."
@@ -703,6 +744,7 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
              (org-collect-code-todos--debug "Archiving orphaned TODO: %s" id)
              (org-archive-subtree))))))))
 
+;;;;; Save Hook
 
 (defun org-collect-code-todos--update-todos-on-save ()
   "Update TODOs in the org file when saving a source file."
@@ -721,6 +763,8 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
         (dolist (todo-info todos)
           (org-collect-code-todos--update-or-create-todo org-file file-path todo-info))))))
 
+;;;;; Org to Source Synchronization
+
 (defun org-collect-code-todos--sync-todo-to-source ()
   "Sync TODO from org file to source file."
   (org-collect-code-todos--debug "Syncing TODO to source")
@@ -735,6 +779,9 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
   "Wrapper for `org-collect-code-todos--sync-todo-to-source' to use as advice.
 Ignores any arguments passed to it."
   (org-collect-code-todos--sync-todo-to-source))
+
+;;;; Org File Protection
+;;;;; Read-Only Management
 
 (defun org-collect-code-todos--make-org-file-read-only ()
   "Make the org TODOs file read-only."
@@ -758,6 +805,8 @@ Restores the read-only state after execution."
       (when was-read-only
         (setq buffer-read-only t)
         (org-collect-code-todos--debug "Restored org file read-only state")))))
+
+;;;;; Hook and Advice Setup
 
 (defun org-collect-code-todos--setup-org-hooks ()
   "Set up hooks and advice for org-mode synchronization."
@@ -795,6 +844,9 @@ Restores the read-only state after execution."
 
   (remove-hook 'find-file-hook #'org-collect-code-todos--make-org-file-read-only))
 
+;;;; Navigation and Interaction
+;;;;; TODO-ID Extraction
+
 (defun org-collect-code-todos--get-todo-id-at-point ()
   "Get the TODO ID at point in a source file.
 Returns the TODO ID or nil if not found."
@@ -805,6 +857,8 @@ Returns the TODO ID or nil if not found."
       (setq todo-id (match-string 2 line))
       (org-collect-code-todos--debug "Found TODO ID: %s" todo-id))
     todo-id))
+
+;;;;; Org TODO Navigation
 
 (defun org-collect-code-todos--find-and-goto-org-todo (todo-id)
   "Find the org TODO with TODO-ID.
@@ -834,6 +888,8 @@ Returns the buffer and position if found, nil otherwise."
           (message "Could not find corresponding TODO in org file")
           (org-collect-code-todos--debug "Failed to find TODO with ID: %s" todo-id)
           nil)))))
+
+;;;;; Interactive Commands
 
 ;;;###autoload
 (defun org-collect-code-todos-goto-org-todo ()
@@ -920,6 +976,8 @@ This should be called when point is on a TODO line in a source file."
       (message "No TODO found at point")
       (org-collect-code-todos--debug "No TODO ID found at current line"))))
 
+;;;;; Advice Functions
+
 (defun org-collect-code-todos--make-writable-advice (orig-fun &rest args)
   "Advice to make the org file temporarily writable during execution of ORIG-FUN with ARGS."
   (if (and (buffer-file-name)
@@ -941,6 +999,9 @@ This should be called when point is on a TODO line in a source file."
              'todo)
        'done))))
 
+;;;; Minor Modes
+;;;;; Buffer-Local Mode
+
 ;;;###autoload
 (define-minor-mode org-collect-code-todos-buffer-mode
   "Minor mode for interacting with code TODOs in supported buffers.
@@ -958,6 +1019,8 @@ It provides keybindings for interacting with TODOs in the current buffer."
   (when (and org-collect-code-todos-mode
              (org-collect-code-todos--buffer-supported-p))
     (org-collect-code-todos-buffer-mode 1)))
+
+;;;;; Global Mode
 
 ;;;###autoload
 (define-minor-mode org-collect-code-todos-mode
