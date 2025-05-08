@@ -241,18 +241,6 @@ where todo-start is the position where the TODO comment starts."
           (org-collect-code-todos--debug "TODO starts at position: %d" todo-start)
           (list todo-line following-lines todo-start))))))
 
-;;;;; TODO Creation
-
-(defun org-collect-code-todos--create-todo-with-id (todo-text)
-  "Create a new TODO with TODO-TEXT and a generated ID.
-Returns the TODO line with ID."
-  (org-collect-code-todos--debug "Creating new TODO with text: %s" todo-text)
-  (let* ((id (org-collect-code-todos--generate-uuid))
-         (comment-prefix (org-collect-code-todos--get-comment-prefix))
-         (todo-line (format "%s TODO[%s] %s" comment-prefix id todo-text)))
-    (org-collect-code-todos--debug "Created TODO line: %s" todo-line)
-    todo-line))
-
 ;;;;; Buffer Support Detection
 
 (defun org-collect-code-todos--buffer-supported-p ()
