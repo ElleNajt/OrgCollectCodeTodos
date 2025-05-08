@@ -356,35 +356,6 @@ If nil, defaults to code-todos.org in the project root or current directory."
 
 ;;;;; Org Heading Management
 
-(defun org-collect-code-todos--find-or-create-heading (file heading-path)
-  "In FILE, find or create heading at HEADING-PATH.
-HEADING-PATH is a list of headings, from parent to child.
-Returns the point at the end of the heading line."
-  (org-collect-code-todos--debug "Finding or creating heading: %s" heading-path)
-  (with-current-buffer (find-file-noselect file)
-    (org-collect-code-todos--with-writable-buffer (current-buffer)
-                                                  (lambda ()
-                                                    (goto-char (point-min))
-                                                    (let ((current-level 1))
-                                                      (dolist (heading heading-path)
-                                                        (let ((heading-regexp (format "^\\*\\{%d\\} %s$" current-level (regexp-quote heading))))
-                                                          (if (re-search-forward heading-regexp nil t)
-                                                              (progn
-                                                                (org-collect-code-todos--debug "Found existing heading: %s" heading)
-                                                                (end-of-line))
-                                                            (progn
-                                                              (org-collect-code-todos--debug "Creating new heading: %s" heading)
-                                                              (if (= current-level 1)
-                                                                  (progn
-                                                                    (goto-char (point-max))
-                                                                    (unless (bolp) (insert "\n")))
-                                                                (org-end-of-subtree t t)
-                                                                (insert "\n"))
-                                                              (insert (make-string current-level ?*) " " heading)
-                                                              (end-of-line))))
-                                                        (setq current-level (1+ current-level))))
-                                                    (point)))))
-
 (defun org-collect-code-todos--find-todo-by-id (file todo-id)
   "Find a TODO with TODO-ID in FILE.
 Returns the point at the beginning of the heading, or nil if not found."
@@ -562,10 +533,9 @@ TODO-INFO is (todo-line following-lines todo-start)."
                  ;; Create new TODO
                  (progn
                    (org-collect-code-todos--debug "Creating new TODO: %s" heading)
-                   ;; Find or create the main "Code TODOs" heading
-                   (org-collect-code-todos--find-or-create-heading file (list "Code TODOs"))
+                   (goto-char (point-max))
                    (insert "\n")
-                   (insert "** " heading)
+                   (insert "* " heading)
                    (org-set-property "TODO_ID" todo-id)
                    (org-entry-put (point) "FILE_PATH" file-path)
                    (when scheduled
