@@ -350,7 +350,6 @@ If nil, defaults to code-todos.org in the project root or current directory."
       (org-collect-code-todos--debug "Creating new org file at %s" file-path)
       (with-temp-file file-path
         (insert "#+TITLE: Code TODOs\n")
-        (insert "#+STARTUP: overview\n")
         (insert "#+TODO: TODO DONE\n\n")
         (insert "* Code TODOs\n")))
     file-path))
