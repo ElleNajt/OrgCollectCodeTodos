@@ -722,8 +722,6 @@ TODOS is a list of (todo-line following-lines) for each TODO found in the source
                 (push (point) orphaned-todos))))
           nil 'file)
 
-         ;; Delete orphaned TODOs in reverse order
-         (setq orphaned-todos (nreverse orphaned-todos))
          (dolist (pos orphaned-todos)
            (goto-char pos)
            (let ((id (org-entry-get nil "TODO_ID")))
