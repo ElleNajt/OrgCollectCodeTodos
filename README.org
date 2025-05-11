@@ -18,7 +18,7 @@ This org mode file is read-only, except for toggling TODO/DONE and scheduling, t
 
 Changes to the TODO in the source code file update in the org mode file. When a TODO is deleted from the source code file, it is archived from the todo org mode file. TODOs can be scheduled or given deadlines, and this is synchronized.
 
-This should work in any prog-mode, but there are various tricky things around indentation. This has been most thoroughly tested with python, elisp and nix.
+This should work in any prog-mode, but there may be tricky things I haven't anticipated. This has been most thoroughly tested with python, typescript, elisp and nix.
 
 ** Setup:
 
